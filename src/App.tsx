@@ -67,7 +67,7 @@ function Guard({
   const { user } = useAuth();
   const allowed =
     role === 'super'
-      ? user?.role === 'SUPER_ADMIN'
+      ? user?.role === 'ADMIN'
       : role === 'manager'
         ? user?.role !== 'PEGAWAI'
         : user?.role === 'PEGAWAI';
@@ -96,7 +96,7 @@ function Content() {
         <Route
           path="pegawai/tambah"
           element={
-            <Guard role="manager">
+            <Guard role="super">
               <EmployeeForm />
             </Guard>
           }
@@ -112,7 +112,7 @@ function Content() {
         <Route
           path="pegawai/:id/edit"
           element={
-            <Guard role="manager">
+            <Guard role="super">
               <EmployeeForm />
             </Guard>
           }
@@ -120,7 +120,7 @@ function Content() {
         <Route
           path="tim"
           element={
-            <Guard role="manager">
+            <Guard role="super">
               <Teams />
             </Guard>
           }
@@ -128,7 +128,7 @@ function Content() {
         <Route
           path="penilaian"
           element={
-            <Guard role="manager">
+            <Guard role="super">
               <AssessmentOverview />
             </Guard>
           }
@@ -138,7 +138,7 @@ function Content() {
         <Route
           path="pengaturan"
           element={
-            <Guard role="manager">
+            <Guard role="super">
               <Settings />
             </Guard>
           }

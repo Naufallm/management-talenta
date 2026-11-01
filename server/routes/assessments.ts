@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import type { DB } from '../db/index.ts';
@@ -9,7 +10,7 @@ import {
   type ScoreConfig,
 } from '../../shared/contracts.ts';
 import { assert } from '../errors.ts';
-import { audit, identity, requireManager, getPeriod, ownEmployee } from '../http.ts';
+import { audit, identity, requireManager, getPeriod, ownEmployee, requireSuper } from '../http.ts';
 import { potentialScore, calculateEmployee, round } from '../domain/scoring.ts';
 import { encrypt, decrypt } from '../security.ts';
 export function assessmentRouter(db: DB) {
@@ -19,8 +20,7 @@ export function assessmentRouter(db: DB) {
       u = identity(res);
     assert(['potential', 'psych'].includes(String(kind)), 404, 'Asesmen tidak ditemukan.');
     if (kind === 'psych') {
-      const allowed =
-        u.role === 'SUPER_ADMIN' || (u.role === 'PEGAWAI' && u.employee_id === employeeId);
+      const allowed = u.role === 'ADMIN' || (u.role === 'PEGAWAI' && u.employee_id === employeeId);
       if (!allowed) await audit(db, u.id, 'PSYCH_ACCESS_DENIED', `psych/${employeeId}/${periodId}`);
       assert(allowed, 403, 'Anda tidak memiliki akses data psikologi.');
     } else ownEmployee(res, String(employeeId));
@@ -47,6 +47,64 @@ export function assessmentRouter(db: DB) {
             },
       });
     } else res.json({ answers: row?.answers || {}, submitted_at: row?.submitted_at || null });
+  });
+  r.put('/psychology/:periodId/:employeeId', requireSuper, async (req, res) => {
+    const d = z
+      .object({
+        answers: z.record(z.string(), z.number().int().min(1).max(5)),
+        result: z.object({
+          status: z.string().trim().min(3).max(100),
+          message: z.string().trim().min(3).max(4000),
+        }),
+      })
+      .parse(req.body);
+    const { periodId, employeeId } = req.params;
+    await db.transaction(async (tx) => {
+      await getPeriod(tx, String(periodId), false, true);
+      assert(
+        (await tx.query('SELECT id FROM employees WHERE id=$1', [employeeId])).length,
+        404,
+        'Pegawai tidak ditemukan.',
+      );
+      const questions = await tx.query('SELECT id FROM psych_questions WHERE period_id=$1', [
+        periodId,
+      ]);
+      assert(
+        Object.keys(d.answers).every((id) => questions.some((q) => q.id === id)),
+        422,
+        'Soal tidak berlaku.',
+      );
+      await tx.query(
+        'INSERT INTO psych_answers(employee_id,period_id,encrypted_answers) VALUES($1,$2,$3) ON CONFLICT(employee_id,period_id) DO UPDATE SET encrypted_answers=$3,updated_at=now()',
+        [employeeId, periodId, encrypt(d.answers)],
+      );
+      await tx.query(
+        'INSERT INTO psych_results VALUES($1,$2,$3,now()) ON CONFLICT(employee_id,period_id) DO UPDATE SET encrypted_result=$3,updated_at=now()',
+        [employeeId, periodId, encrypt(d.result)],
+      );
+      await audit(tx, identity(res).id, 'PSYCH_SAVE', `psych/${employeeId}/${periodId}`);
+    });
+    res.json({ message: 'Data psikologi disimpan.' });
+  });
+  r.delete('/psychology/:periodId/:employeeId', requireSuper, async (req, res) => {
+    await db.transaction(async (tx) => {
+      await getPeriod(tx, String(req.params.periodId), false, true);
+      await tx.query('DELETE FROM psych_results WHERE employee_id=$1 AND period_id=$2', [
+        req.params.employeeId,
+        req.params.periodId,
+      ]);
+      await tx.query('DELETE FROM psych_answers WHERE employee_id=$1 AND period_id=$2', [
+        req.params.employeeId,
+        req.params.periodId,
+      ]);
+      await audit(
+        tx,
+        identity(res).id,
+        'PSYCH_DELETE',
+        `psych/${req.params.employeeId}/${req.params.periodId}`,
+      );
+    });
+    res.json({ message: 'Data psikologi dihapus.' });
   });
   r.put('/assessments/:kind/:periodId', async (req, res) => {
     const u = identity(res),

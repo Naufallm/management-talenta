@@ -1,4 +1,4 @@
-export const roles = ['SUPER_ADMIN', 'ADMIN', 'PEGAWAI'] as const;
+export const roles = ['ADMIN', 'SUPERVISOR', 'PEGAWAI'] as const;
 export const indicators = [
   'Kualitas pekerjaan',
   'Kolaborasi tim',

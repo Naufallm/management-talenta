@@ -25,7 +25,7 @@ export async function seed(db: DB) {
     for (let i = 0; i < teams.length; i++)
       await tx.query('INSERT INTO teams VALUES($1,$2)', [`team-${i + 1}`, teams[i]]);
     await tx.query(
-      `INSERT INTO users(id,username,password_hash,role) VALUES('user-super','superadmin',$1,'SUPER_ADMIN'),('user-admin','admin',$1,'ADMIN')`,
+      `INSERT INTO users(id,username,password_hash,role) VALUES('user-super','superadmin',$1,'ADMIN'),('user-admin','admin',$1,'ADMIN'),('user-supervisor','supervisor',$1,'SUPERVISOR')`,
       [hash],
     );
     const names = [
@@ -34,18 +34,11 @@ export async function seed(db: DB) {
       'Rizky Firmansyah',
       'Dewi Anggraini',
       'Fajar Nugroho',
-      'Intan Permatasari',
-      'Bagas Saputra',
-      'Ayu Lestari',
-      'Dimas Ramadhan',
-      'Sinta Maharani',
-      'Arif Wicaksono',
-      'Rani Kusuma',
     ];
     for (let i = 0; i < names.length; i++) {
       const id = `emp-${i + 1}`,
         nip = `199001012020011${String(i + 1).padStart(3, '0')}`,
-        team = i % 6;
+        team = i % 2;
       await tx.query(
         'INSERT INTO employees(id,nip,name,position,grade,unit,email) VALUES($1,$2,$3,$4,$5,$6,$7)',
         [
@@ -70,7 +63,7 @@ export async function seed(db: DB) {
         randomUUID(),
         `team-${team + 1}`,
         id,
-        i < 6,
+        i < 2,
       ]);
       for (let m = 1; m <= 9; m++)
         await tx.query(
@@ -99,7 +92,7 @@ export async function seed(db: DB) {
     );
     const questions = await tx.query<Question>('SELECT * FROM potential_questions');
     const [config] = await tx.query<ScoreConfig>('SELECT * FROM score_config');
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < names.length - 1; i++) {
       const id = `emp-${i + 1}`,
         answers = Object.fromEntries(
           questions.map((q, j) => [q.id, Math.max(1, Math.min(5, 2 + ((i + j) % 4)))]),
@@ -118,13 +111,13 @@ export async function seed(db: DB) {
         [randomUUID(), id, 12 + i * 3],
       );
       // Only actual assigned leaders assess their members in development data.
-      if (i >= 6)
+      if (i >= 2)
         await tx.query(
           `INSERT INTO leader_assessments VALUES($1,'period-2026',$2,$3,$4,'Data contoh development',$5,now())`,
           [
             randomUUID(),
             id,
-            `emp-${i - 5}`,
+            `emp-${(i % 2) + 1}`,
             JSON.stringify({
               'Kualitas pekerjaan': 80,
               'Kolaborasi tim': 85,

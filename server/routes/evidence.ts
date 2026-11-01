@@ -15,15 +15,6 @@ export function evidenceRouter(db: DB) {
   async function mayWrite(tx: DB, res: any, employeeId: string, periodId: string) {
     ownEmployee(res, employeeId);
     await getPeriod(tx, periodId, true);
-    const [config] = await tx.query(
-      'SELECT employee_uploads FROM score_config WHERE period_id=$1',
-      [periodId],
-    );
-    assert(
-      manager(res) || config.employee_uploads,
-      403,
-      'Unggah bukti pegawai belum diaktifkan. Hubungi Admin.',
-    );
   }
   r.post('/documents', upload.single('file'), async (req, res) => {
     const employeeId = String(req.body.employee_id || ''),

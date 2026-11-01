@@ -74,14 +74,14 @@ export function Login() {
               </div>
             </Field>
           </Form>
-          <p className="login-help">Lupa kata sandi? Hubungi Super Admin untuk pemulihan akun.</p>
+          <p className="login-help">Lupa kata sandi? Hubungi Admin untuk pemulihan akun.</p>
           {import.meta.env.DEV && (
             <details className="dev-accounts">
               <summary>
                 Akun pengembangan <ArrowRight size={13} />
               </summary>
               <p>
-                Super Admin: <code>superadmin</code>
+                Supervisor: <code>supervisor</code>
                 <br />
                 Admin: <code>admin</code>
                 <br />

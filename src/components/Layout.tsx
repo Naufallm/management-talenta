@@ -37,7 +37,7 @@ const employeeNav = [
   ['/asesmen-psikologi', 'Asesmen Psikologi', HeartPulse],
   ['/profil', 'Profil Saya', UserRound],
 ] as const;
-export const roleLabel = { SUPER_ADMIN: 'Super Admin', ADMIN: 'Admin', PEGAWAI: 'Pegawai' };
+export const roleLabel = { ADMIN: 'Admin', SUPERVISOR: 'Supervisor', PEGAWAI: 'Pegawai' };
 export function Brand() {
   return (
     <Link className="brand" to="/" aria-label="Talenta BPS Kota Batu">
@@ -59,12 +59,17 @@ export function Layout() {
     <>
       <p className="nav-caption">MENU UTAMA</p>
       <nav aria-label="Menu utama">
-        {nav.map(([path, label, Icon]) => (
-          <NavLink key={path} to={path} end={path === '/'} onClick={() => setMobile(false)}>
-            <Icon size={18} />
-            <span>{label}</span>
-          </NavLink>
-        ))}
+        {nav
+          .filter(
+            ([path]) =>
+              user?.role !== 'SUPERVISOR' || !['/pengaturan', '/penilaian'].includes(path),
+          )
+          .map(([path, label, Icon]) => (
+            <NavLink key={path} to={path} end={path === '/'} onClick={() => setMobile(false)}>
+              <Icon size={18} />
+              <span>{label}</span>
+            </NavLink>
+          ))}
         {user?.role === 'PEGAWAI' && user.is_leader && (
           <NavLink to="/penilaian-anggota" onClick={() => setMobile(false)}>
             <Users size={18} />
@@ -72,7 +77,7 @@ export function Layout() {
           </NavLink>
         )}
       </nav>
-      {user?.role === 'SUPER_ADMIN' && (
+      {user?.role === 'ADMIN' && (
         <>
           <p className="nav-caption secondary-caption">ADMINISTRASI</p>
           <nav aria-label="Administrasi">

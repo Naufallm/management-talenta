@@ -95,7 +95,7 @@ export function authRouter(db: DB) {
   );
   r.patch('/users/:id', requireSuper, async (req, res) => {
     const { role, active } = z
-      .object({ role: z.enum(['SUPER_ADMIN', 'ADMIN', 'PEGAWAI']), active: z.boolean() })
+      .object({ role: z.enum(['ADMIN', 'SUPERVISOR', 'PEGAWAI']), active: z.boolean() })
       .parse(req.body);
     assert(
       req.params.id !== identity(res).id,

@@ -2226,3 +2226,91 @@ fieldset:disabled .answer-options label {
     scroll-behavior: auto !important;
   }
 }
+
+.employee-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 20px;
+  padding: 8px 0 20px;
+}
+.employee-card {
+  border: 1px solid #e3eaf0;
+  border-radius: 16px;
+  padding: 24px;
+  background: linear-gradient(145deg, #fff, #f9fbfd);
+  transition:
+    box-shadow 0.2s,
+    transform 0.2s;
+  min-width: 0;
+}
+.employee-card:hover {
+  box-shadow: 0 10px 28px #174c7912;
+  transform: translateY(-2px);
+}
+.employee-card-top,
+.employee-card-actions,
+.employee-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.employee-card .avatar {
+  width: 52px;
+  height: 52px;
+  font-size: 18px;
+}
+.employee-card h3 {
+  margin: 20px 0 6px;
+  font-size: 18px;
+}
+.employee-card h3 a {
+  color: #174c79;
+  text-decoration: none;
+}
+.employee-card p {
+  font-size: 13px;
+  color: #617285;
+  overflow-wrap: anywhere;
+}
+.employee-nip {
+  margin: 0 0 16px;
+}
+.employee-card-meta {
+  justify-content: flex-start;
+  margin-top: 20px;
+  font-size: 13px;
+  color: #617285;
+}
+.employee-card-meta .grade {
+  margin-left: auto;
+}
+.employee-card-actions {
+  border-top: 1px solid #e3eaf0;
+  padding-top: 16px;
+  margin-top: 20px;
+}
+.employee-card-actions .text-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.feedback-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+.feedback-card {
+  padding: 18px;
+  border: 1px solid #e3eaf0;
+  border-radius: 12px;
+}
+.feedback-card small {
+  display: block;
+  margin-top: 4px;
+  color: #617285;
+}
+.feedback-card p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

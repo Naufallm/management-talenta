@@ -188,7 +188,7 @@ export function Ckp() {
         title={isManager ? 'Kinerja CKP' : 'Kinerja CKP Saya'}
         description={`Capaian kinerja bulanan · Tahun ${period?.year || '—'}`}
         actions={
-          isManager && (
+          user?.role === 'ADMIN' && (
             <>
               <Button variant="secondary" onClick={() => setImporting(true)}>
                 <Upload size={16} />
@@ -248,7 +248,7 @@ export function Ckp() {
                     <th>Bulan</th>
                     <th>Tahun</th>
                     <th>Skor CKP</th>
-                    {isManager && <th>Aksi</th>}
+                    {user?.role === 'ADMIN' && <th>Aksi</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -265,7 +265,7 @@ export function Ckp() {
                       <td>
                         <strong>{number(r.score)}</strong>
                       </td>
-                      {isManager && (
+                      {user?.role === 'ADMIN' && (
                         <td>
                           <Button
                             variant="ghost"

@@ -21,7 +21,7 @@ export function requireManager(_req: Request, res: Response, next: NextFunction)
   next();
 }
 export function requireSuper(_req: Request, res: Response, next: NextFunction) {
-  assert(identity(res).role === 'SUPER_ADMIN', 403, 'Akses hanya untuk Super Admin.');
+  assert(identity(res).role === 'ADMIN', 403, 'Akses hanya untuk Admin.');
   next();
 }
 export function ownEmployee(res: Response, id: string) {
@@ -90,6 +90,14 @@ export function authenticate(db: DB) {
       403,
       'Ganti kata sandi awal sebelum melanjutkan.',
     );
+    if (user.role === 'SUPERVISOR' && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+      assert(
+        ['/auth/password', '/auth/logout'].includes(req.path) ||
+          (req.method === 'POST' && /^\/employees\/[^/]+\/feedback$/.test(req.path)),
+        403,
+        'Supervisor hanya dapat melihat data dan memberikan feedback.',
+      );
+    }
     next();
   };
 }

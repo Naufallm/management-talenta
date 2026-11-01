@@ -35,7 +35,7 @@ export function Dashboard() {
             : 'Lihat perkembangan Anda dan tuntaskan penilaian periode ini.'
         }
         actions={
-          isManager && (
+          user?.role === 'ADMIN' && (
             <Link className="btn btn-secondary" to="/laporan">
               Lihat laporan
               <ArrowUpRight size={16} />
@@ -122,15 +122,23 @@ export function Dashboard() {
                 <div className="task-list">
                   {[
                     [
-                      isManager ? '/penilaian' : '/asesmen-potensi',
-                      'Asesmen tahunan',
-                      'Tinjau penilaian potensi',
+                      user?.role === 'SUPERVISOR'
+                        ? '/pegawai'
+                        : isManager
+                          ? '/penilaian'
+                          : '/asesmen-potensi',
+                      user?.role === 'SUPERVISOR' ? 'Feedback pegawai' : 'Asesmen tahunan',
+                      user?.role === 'SUPERVISOR'
+                        ? 'Berikan masukan kapan saja'
+                        : 'Tinjau penilaian potensi',
                       ClipboardCheck,
                     ],
                     [
                       isManager ? '/pegawai' : '/kompetensi',
                       'Pelatihan & penghargaan',
-                      'Lengkapi bukti kompetensi',
+                      user?.role === 'SUPERVISOR'
+                        ? 'Lihat bukti kompetensi pegawai'
+                        : 'Lengkapi bukti kompetensi',
                       BookOpen,
                     ],
                     ['/ckp', 'Kinerja CKP', 'Pantau capaian bulanan', ChartColumnIncreasing],

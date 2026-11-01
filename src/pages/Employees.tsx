@@ -36,6 +36,8 @@ import {
 } from '../components/ui';
 import type { Employee, EmployeeInput } from '../../shared/contracts';
 export function EmployeeList() {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'ADMIN';
   const [search, setSearch] = useState(''),
     [q, setQ] = useState(''),
     [unit, setUnit] = useState(''),
@@ -60,14 +62,18 @@ export function EmployeeList() {
         description="Kelola data dan perjalanan talenta pegawai BPS Kota Batu."
         actions={
           <>
-            <Link className="btn btn-secondary" to="/tim">
-              <Users size={16} />
-              Struktur Tim
-            </Link>
-            <Link className="btn btn-primary" to="/pegawai/tambah">
-              <Plus size={17} />
-              Tambah Pegawai
-            </Link>
+            {canEdit && (
+              <Link className="btn btn-secondary" to="/tim">
+                <Users size={16} />
+                Struktur Tim
+              </Link>
+            )}
+            {canEdit && (
+              <Link className="btn btn-primary" to="/pegawai/tambah">
+                <Plus size={17} />
+                Tambah Pegawai
+              </Link>
+            )}
           </>
         }
       />
@@ -115,73 +121,47 @@ export function EmployeeList() {
         <State {...state} retry={state.refresh}>
           {data?.rows.length ? (
             <>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Pegawai / NIP</th>
-                      <th>Jabatan</th>
-                      <th>Golongan</th>
-                      <th>Unit / Tim</th>
-                      <th>Status</th>
-                      <th>
-                        <span className="sr-only">Aksi</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.rows.map((e, i) => (
-                      <tr key={e.id}>
-                        <td>
-                          <Link className="person" to={`/pegawai/${e.id}`}>
-                            <span className={`avatar avatar-${i % 4}`}>
-                              {e.name
-                                .split(' ')
-                                .slice(0, 2)
-                                .map((n) => n[0])
-                                .join('')}
-                            </span>
-                            <span>
-                              <strong>{e.name}</strong>
-                              <small className="mono">{e.nip}</small>
-                            </span>
-                          </Link>
-                        </td>
-                        <td>{e.position}</td>
-                        <td>
-                          <span className="grade">{e.grade}</span>
-                        </td>
-                        <td>
-                          {e.unit}
-                          {e.teams && e.teams !== e.unit && <small>{e.teams}</small>}
-                        </td>
-                        <td>
-                          <Badge tone={e.active ? 'green' : 'neutral'}>
-                            {e.active ? 'Aktif' : 'Nonaktif'}
-                          </Badge>
-                        </td>
-                        <td>
-                          <div className="row-actions">
-                            <Link
-                              to={`/pegawai/${e.id}/edit`}
-                              className="icon-link"
-                              aria-label={`Edit ${e.name}`}
-                            >
-                              <Pencil size={16} />
-                            </Link>
-                            <Link
-                              to={`/pegawai/${e.id}`}
-                              className="icon-link"
-                              aria-label={`Detail ${e.name}`}
-                            >
-                              <ArrowUpRight size={17} />
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="employee-grid">
+                {data.rows.map((e, i) => (
+                  <article className="employee-card" key={e.id}>
+                    <div className="employee-card-top">
+                      <span className={`avatar avatar-${i % 4}`}>
+                        {e.name
+                          .split(' ')
+                          .slice(0, 2)
+                          .map((n) => n[0])
+                          .join('')}
+                      </span>
+                      <Badge tone={e.active ? 'green' : 'neutral'}>
+                        {e.active ? 'Aktif' : 'Nonaktif'}
+                      </Badge>
+                    </div>
+                    <h3>
+                      <Link to={`/pegawai/${e.id}`}>{e.name}</Link>
+                    </h3>
+                    <p className="mono employee-nip">{e.nip}</p>
+                    <p>{e.position}</p>
+                    <div className="employee-card-meta">
+                      <Building2 size={16} />
+                      <span>{e.unit}</span>
+                      <span className="grade">{e.grade}</span>
+                    </div>
+                    <div className="employee-card-actions">
+                      <Link className="text-link" to={`/pegawai/${e.id}`}>
+                        Lihat profil <ArrowUpRight size={16} />
+                      </Link>
+                      {canEdit && (
+                        <Link
+                          className="icon-link"
+                          aria-label={`Edit ${e.name}`}
+                          to={`/pegawai/${e.id}/edit`}
+                        >
+                          <Pencil size={16} />
+                        </Link>
+                      )}
+                    </div>
+                  </article>
+                ))}
               </div>
               <Pagination page={page} total={data.total} limit={data.limit} onPage={setPage} />
             </>
@@ -345,8 +325,8 @@ export function EmployeeDetail({
     [credential, setCredential] = useState<any>(null),
     { run, confirm } = useFeedback();
   const employee = data?.employee as Employee | undefined,
-    isManager = user?.role !== 'PEGAWAI';
-  const config = useApi(period ? `/periods/${period.id}/config` : null);
+    isManager = user?.role === 'ADMIN';
+
   const potential = data?.potential.find((r: any) => r.period_id === period?.id),
     competency = data?.competency.find((r: any) => r.period_id === period?.id),
     history = data?.history.find((r: any) => r.period_id === period?.id),
@@ -572,11 +552,11 @@ export function EmployeeDetail({
                   title="Pelatihan & penghargaan"
                   description="Bukti yang terverifikasi berkontribusi terhadap skor kompetensi."
                   actions={
-                    (isManager || config.data?.employee_uploads) &&
+                    (isManager || user?.role === 'PEGAWAI') &&
                     period && (
                       <Button onClick={() => setEvidence(true)}>
                         <Plus size={16} />
-                        Tambah kegiatan
+                        Tambah sertifikat
                       </Button>
                     )
                   }
@@ -752,6 +732,7 @@ export function EmployeeDetail({
                 )}
               </Panel>
             )}
+            {id && <EmployeeFeedback employeeId={id} />}
             {isManager && (
               <div className="detail-admin-actions">
                 <Button
@@ -851,7 +832,7 @@ function EvidenceDialog({
   onSave: () => void;
 }) {
   return (
-    <Dialog title="Tambah kegiatan" onClose={onClose}>
+    <Dialog title="Tambah sertifikat" onClose={onClose}>
       <Form
         submit="Simpan kegiatan"
         cancel={onClose}
@@ -919,7 +900,7 @@ function EvidenceDialog({
             />
           </Field>
         </div>
-        <Field label="Dokumen bukti" hint="PDF, PNG, atau JPEG. Maksimum 2 MB.">
+        <Field label="Sertifikat / dokumen bukti" hint="PDF, PNG, atau JPEG. Maksimum 2 MB.">
           <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" />
         </Field>
         {isManager && (
@@ -930,5 +911,55 @@ function EvidenceDialog({
         )}
       </Form>
     </Dialog>
+  );
+}
+
+function EmployeeFeedback({ employeeId }: { employeeId: string }) {
+  const { user } = useAuth(),
+    state = useApi(`/employees/${employeeId}/feedback`);
+  return (
+    <Panel
+      title="Feedback & pengembangan"
+      description="Catatan supervisor bersifat opsional, dapat diberikan kapan saja, dan tidak mengubah nilai pegawai."
+    >
+      {(user?.role === 'SUPERVISOR' || user?.role === 'ADMIN') && (
+        <Form
+          submit="Kirim feedback"
+          onSubmit={async (d) => {
+            await post(`/employees/${employeeId}/feedback`, { content: string(d, 'content') });
+            state.refresh();
+          }}
+        >
+          <Field label="Feedback untuk pegawai">
+            <textarea
+              name="content"
+              required
+              minLength={3}
+              maxLength={4000}
+              rows={4}
+              placeholder="Tulis apresiasi, masukan, atau saran pengembangan…"
+            />
+          </Field>
+        </Form>
+      )}
+      <State {...state} retry={state.refresh}>
+        {state.data?.length ? (
+          <div className="feedback-list">
+            {state.data.map((f: any) => (
+              <article className="feedback-card" key={f.id}>
+                <strong>{f.author_name}</strong>
+                <small>{date(f.created_at)}</small>
+                <p>{f.content}</p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <Empty
+            title="Belum ada feedback"
+            description="Feedback dapat diberikan sewaktu-waktu tanpa jadwal wajib."
+          />
+        )}
+      </State>
+    </Panel>
   );
 }

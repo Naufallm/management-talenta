@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useApi, useAuth, usePeriod } from '../lib/context';
-import { post, patch } from '../lib/api';
+import { api, put, post, patch } from '../lib/api';
 import {
   PageHeader,
   Panel,
@@ -210,6 +210,8 @@ export function Audit() {
   );
 }
 export function PsychologyResults() {
+  const [editing, setEditing] = useState(false);
+  const { run, confirm } = useFeedback();
   const [id, setId] = useState(''),
     { period } = usePeriod(),
     questions = useApi<Question[]>(period ? `/periods/${period.id}/questions/psych` : null),
@@ -218,7 +220,7 @@ export function PsychologyResults() {
     <>
       <PageHeader
         title="Hasil Asesmen Psikologi"
-        description="Akses terbatas Super Admin. Setiap pembacaan jawaban tercatat dalam audit log."
+        description="Akses terbatas Admin. Setiap pembacaan jawaban tercatat dalam audit log."
       />
       <Panel title="Pilih pegawai">
         <Field label="Pegawai">
@@ -226,7 +228,34 @@ export function PsychologyResults() {
         </Field>
       </Panel>
       {id && (
-        <Panel title="Jawaban dan hasil terbatas">
+        <Panel
+          title="Jawaban dan hasil terbatas"
+          actions={
+            <>
+              <Button onClick={() => setEditing(true)}>Kelola psikologi</Button>
+              <Button
+                variant="ghost"
+                onClick={async () => {
+                  if (
+                    await confirm({
+                      title: 'Hapus data psikologi?',
+                      description:
+                        'Jawaban dan hasil pegawai pada periode ini akan dihapus. Tindakan dicatat dalam audit log.',
+                      danger: true,
+                      label: 'Hapus',
+                    })
+                  )
+                    void run(async () => {
+                      await api(`/psychology/${period?.id}/${id}`, { method: 'DELETE' });
+                      state.refresh();
+                    });
+                }}
+              >
+                Hapus
+              </Button>
+            </>
+          }
+        >
           <State {...state} retry={state.refresh}>
             {state.data && (
               <>
@@ -258,6 +287,62 @@ export function PsychologyResults() {
             )}
           </State>
         </Panel>
+      )}
+      {editing && id && period && (
+        <Dialog title="Kelola data psikologi" onClose={() => setEditing(false)}>
+          <Form
+            cancel={() => setEditing(false)}
+            onSubmit={async (d) => {
+              const answers = Object.fromEntries(
+                (questions.data || [])
+                  .filter((q) => string(d, q.id) !== '')
+                  .map((q) => [q.id, Number(d.get(q.id))]),
+              );
+              await put(`/psychology/${period.id}/${id}`, {
+                answers,
+                result: { status: string(d, 'status'), message: string(d, 'message') },
+              });
+              setEditing(false);
+              state.refresh();
+            }}
+          >
+            <p className="muted">
+              Perubahan disimpan terenkripsi dan diaudit. Hasil diisi oleh Admin, tanpa skoring
+              klinis otomatis.
+            </p>
+            {questions.data?.map((q) => (
+              <Field label={q.text} key={q.id}>
+                <select name={q.id} defaultValue={state.data?.answers[q.id] ?? ''}>
+                  <option value="">Belum dijawab</option>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ))}
+            <Field label="Status hasil">
+              <input
+                name="status"
+                required
+                minLength={3}
+                maxLength={100}
+                defaultValue={state.data?.result.status}
+              />
+            </Field>
+            <Field label="Catatan hasil">
+              <textarea
+                name="message"
+                required
+                minLength={3}
+                maxLength={4000}
+                rows={4}
+                defaultValue={state.data?.result.message}
+              />
+            </Field>
+          </Form>
+        </Dialog>
       )}
     </>
   );

@@ -12,16 +12,17 @@ try {
   const hash = await hashPassword(data.password);
   await db.transaction(async (tx) => {
     await tx.query('LOCK TABLE users IN EXCLUSIVE MODE');
-    if ((await tx.query("SELECT id FROM users WHERE role='SUPER_ADMIN'")).length)
-      throw new Error('A Super Admin already exists. Use account management for further access.');
+    if ((await tx.query("SELECT id FROM users WHERE role='ADMIN'")).length)
+      throw new Error('A Admin already exists. Use account management for further access.');
     const id = randomUUID();
-    await tx.query(
-      "INSERT INTO users(id,username,password_hash,role) VALUES($1,$2,$3,'SUPER_ADMIN')",
-      [id, data.username, hash],
-    );
-    await audit(tx, null, 'SUPER_ADMIN_BOOTSTRAP', `users/${id}`);
+    await tx.query("INSERT INTO users(id,username,password_hash,role) VALUES($1,$2,$3,'ADMIN')", [
+      id,
+      data.username,
+      hash,
+    ]);
+    await audit(tx, null, 'ADMIN_BOOTSTRAP', `users/${id}`);
   });
-  console.log('Super Admin created. Password change required at first login.');
+  console.log('Admin created. Password change required at first login.');
 } finally {
   await db.close();
 }

@@ -25,6 +25,37 @@ export function employeeRouter(db: DB) {
     const units = await db.query('SELECT DISTINCT unit FROM employees ORDER BY unit');
     res.json({ rows, total: count.total, page, limit, units: units.map((u) => u.unit) });
   });
+  r.get('/employees/:id/feedback', async (req, res) => {
+    ownEmployee(res, String(req.params.id));
+    res.json(
+      await db.query(
+        `SELECT f.*,u.username AS author_name FROM employee_feedback f JOIN users u ON u.id=f.author_id WHERE f.employee_id=$1 ORDER BY f.created_at DESC,f.id DESC`,
+        [req.params.id],
+      ),
+    );
+  });
+  r.post('/employees/:id/feedback', requireManager, async (req, res) => {
+    const { content } = z.object({ content: z.string().trim().min(3).max(4000) }).parse(req.body);
+    const id = randomUUID();
+    await db.transaction(async (tx) => {
+      assert(
+        (await tx.query('SELECT id FROM employees WHERE id=$1 AND active', [req.params.id])).length,
+        404,
+        'Pegawai aktif tidak ditemukan.',
+      );
+      await tx.query(
+        'INSERT INTO employee_feedback(id,employee_id,author_id,content) VALUES($1,$2,$3,$4)',
+        [id, req.params.id, identity(res).id, content],
+      );
+      await audit(
+        tx,
+        identity(res).id,
+        'FEEDBACK_CREATE',
+        `employees/${req.params.id}/feedback/${id}`,
+      );
+    });
+    res.status(201).json({ id });
+  });
   r.post('/employees', requireManager, async (req, res) => {
     const d = employeeSchema.parse(req.body),
       id = randomUUID();
@@ -118,7 +149,7 @@ export function employeeRouter(db: DB) {
       assert(
         !(await tx.query('SELECT id FROM users WHERE employee_id=$1', [id])).length,
         409,
-        'Pegawai sudah memiliki akun. Reset kata sandi melalui Super Admin.',
+        'Pegawai sudah memiliki akun. Reset kata sandi melalui Admin.',
       );
       await tx.query(
         `INSERT INTO users(id,username,password_hash,role,employee_id) VALUES($1,$2,$3,'PEGAWAI',$4)`,

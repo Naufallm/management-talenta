@@ -65,7 +65,7 @@ export function Assessment({ kind = 'potential' }: { kind?: 'potential' | 'psych
     <>
       <PageHeader
         title={kind === 'psych' ? 'Asesmen Psikologi' : 'Asesmen Potensi'}
-        description={`Penilaian tahunan ${period?.year || '—'} · ${kind === 'psych' ? 'Jawaban hanya dapat dibaca oleh Anda dan Super Admin.' : 'Refleksi kemampuan manajerial dan teknis Anda.'}`}
+        description={`Penilaian tahunan ${period?.year || '—'} · ${kind === 'psych' ? 'Jawaban hanya dapat dibaca oleh Anda dan Admin.' : 'Refleksi kemampuan manajerial dan teknis Anda.'}`}
       />
       <State
         loading={questions.loading || state.loading}

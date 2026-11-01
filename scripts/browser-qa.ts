@@ -32,7 +32,13 @@ const vite = await createServer({
 await vite.listen();
 const base = `http://127.0.0.1:${(vite.httpServer!.address() as { port: number }).port}`;
 const errors: string[] = [];
-const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const outputDir = process.env.BROWSER_QA_OUTPUT_DIR || 'docs/screenshots';
+const browser = await chromium.launch({
+  ...(process.env.BROWSER_EXECUTABLE_PATH
+    ? { executablePath: process.env.BROWSER_EXECUTABLE_PATH }
+    : { channel: 'chrome' }),
+  headless: true,
+});
 async function ready(page: Page) {
   await expect(page.locator('.loading')).toHaveCount(0);
   await expect(page.locator('.error-state')).toHaveCount(0);
@@ -60,7 +66,7 @@ async function noOverflow(page: Page) {
           })),
       })),
     );
-    await page.screenshot({ path: 'docs/screenshots/overflow-debug.png', fullPage: true });
+    await page.screenshot({ path: `${outputDir}/overflow-debug.png`, fullPage: true });
   }
   expect(ok).toBe(true);
 }
@@ -81,13 +87,13 @@ async function login(page: Page, username: string) {
   await ready(page);
 }
 try {
-  await mkdir('docs/screenshots', { recursive: true });
+  await mkdir(outputDir, { recursive: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }),
     page = await context.newPage();
   await login(page, 'superadmin');
   await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
   await noOverflow(page);
-  await page.screenshot({ path: 'docs/screenshots/dashboard-desktop.png', fullPage: true });
+  await page.screenshot({ path: `${outputDir}/dashboard-desktop.png`, fullPage: true });
   await expect(page.locator('image[href="/assets/talent-point.svg"]').first()).toHaveAttribute(
     'width',
     '9',
@@ -98,12 +104,12 @@ try {
   await page.getByRole('link', { name: 'Pegawai', exact: true }).click();
   await ready(page);
   await expect(page.getByRole('heading', { name: 'Daftar Pegawai' })).toBeVisible();
-  await page.screenshot({ path: 'docs/screenshots/pegawai-desktop.png', fullPage: true });
+  await page.screenshot({ path: `${outputDir}/pegawai-desktop.png`, fullPage: true });
   await page.getByRole('textbox', { name: 'Cari pegawai', exact: true }).fill('Aditya');
-  await expect(page.locator('tbody tr')).toHaveCount(1);
-  await expect(page.locator('tbody')).toContainText('Aditya Pratama');
+  await expect(page.locator('.employee-card')).toHaveCount(1);
+  await expect(page.locator('.employee-grid')).toContainText('Aditya Pratama');
   await page.getByRole('textbox', { name: 'Cari pegawai', exact: true }).fill('');
-  await expect(page.locator('tbody tr')).toHaveCount(10);
+  await expect(page.locator('.employee-card')).toHaveCount(5);
   await page.getByRole('link', { name: 'Tambah Pegawai', exact: true }).click();
   await page.getByLabel('NIP', { exact: true }).fill('199901012024011998');
   await page.getByLabel('Nama lengkap').fill('Pegawai QA');
@@ -147,26 +153,50 @@ try {
   await page.goto(base + '/pegawai');
   await ready(page);
   await noOverflow(page);
-  await page.screenshot({ path: 'docs/screenshots/pegawai-mobile.png', fullPage: true });
+  await page.screenshot({ path: `${outputDir}/pegawai-mobile.png`, fullPage: true });
   await page.getByRole('button', { name: 'Buka navigasi' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('dialog').getByRole('link', { name: 'Dashboard', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await ready(page);
   await noOverflow(page);
-  await page.screenshot({ path: 'docs/screenshots/dashboard-mobile.png', fullPage: true });
+  await page.screenshot({ path: `${outputDir}/dashboard-mobile.png`, fullPage: true });
   const adminContext = await browser.newContext({ viewport: { width: 1280, height: 900 } }),
     adminPage = await adminContext.newPage();
   await login(adminPage, 'admin');
   await expect(adminPage.getByRole('link', { name: 'Hasil Psikologi', exact: true })).toHaveCount(
-    0,
+    1,
   );
   await expect(adminPage.getByRole('link', { name: 'Pengguna & Peran', exact: true })).toHaveCount(
-    0,
+    1,
   );
+  const supervisorContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const supervisorPage = await supervisorContext.newPage();
+  await login(supervisorPage, 'supervisor');
+  await expect(
+    supervisorPage.getByRole('link', { name: 'Hasil Psikologi', exact: true }),
+  ).toHaveCount(0);
+  await supervisorPage.goto(base + '/pegawai');
+  await ready(supervisorPage);
+  await expect(
+    supervisorPage.getByRole('link', { name: 'Tambah Pegawai', exact: true }),
+  ).toHaveCount(0);
+  await expect(supervisorPage.getByRole('link', { name: /^Edit / })).toHaveCount(0);
+  await supervisorPage.getByRole('link', { name: 'Aditya Pratama', exact: true }).click();
+  await ready(supervisorPage);
+  await supervisorPage
+    .getByLabel('Feedback untuk pegawai')
+    .fill('Kolaborasi baik, lanjutkan pengembangan kompetensi.');
+  await supervisorPage.getByRole('button', { name: 'Kirim feedback', exact: true }).click();
+  await expect(
+    supervisorPage.getByText('Kolaborasi baik, lanjutkan pengembangan kompetensi.', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await noOverflow(supervisorPage);
   const employeeContext = await browser.newContext({ viewport: { width: 390, height: 844 } }),
     employeePage = await employeeContext.newPage();
-  await login(employeePage, '199001012020011011');
+  await login(employeePage, '199001012020011005');
   for (const path of [
     '/profil',
     '/kompetensi',
@@ -180,6 +210,21 @@ try {
     await ready(employeePage);
     await noOverflow(employeePage);
   }
+  await employeePage.goto(base + '/kompetensi');
+  await ready(employeePage);
+  await employeePage.getByRole('button', { name: 'Tambah sertifikat', exact: true }).click();
+  await employeePage.getByLabel('Kategori', { exact: true }).fill('Teknis');
+  await employeePage.getByLabel('Nama kegiatan').fill('Sertifikat pelatihan QA');
+  await employeePage.getByLabel('Penyelenggara').fill('Pusdiklat QA');
+  await employeePage.getByLabel('Tanggal', { exact: true }).fill('2026-06-15');
+  await employeePage.getByLabel('Jumlah jam').fill('8');
+  await employeePage.locator('input[type=file]').setInputFiles({
+    name: 'sertifikat.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4\nQA certificate'),
+  });
+  await employeePage.getByRole('button', { name: 'Simpan kegiatan', exact: true }).click();
+  await expect(employeePage.getByText('Sertifikat pelatihan QA', { exact: true })).toBeVisible();
   await employeePage.goto(base + '/asesmen-potensi');
   await ready(employeePage);
   const radio = employeePage.locator('input[type=radio]');
@@ -195,19 +240,19 @@ try {
   await employeePage.getByRole('button', { name: 'Kirim jawaban', exact: true }).click();
   await expect(employeePage.getByRole('heading', { name: 'Asesmen telah dikirim' })).toBeVisible();
   await expect(employeePage.locator('input[type=radio]').first()).toBeDisabled();
-  await employeePage.screenshot({ path: 'docs/screenshots/asesmen-mobile.png', fullPage: true });
+  await employeePage.screenshot({ path: `${outputDir}/asesmen-mobile.png`, fullPage: true });
   // Reset only an isolated in-memory fixture to exercise partial leader drafts and review.
-  await db.query("DELETE FROM leader_assessments WHERE employee_id='emp-7'");
+  await db.query("DELETE FROM leader_assessments WHERE employee_id='emp-3'");
   const leaderContext = await browser.newContext({ viewport: { width: 1280, height: 900 } }),
     leaderPage = await leaderContext.newPage();
   await login(leaderPage, '199001012020011001');
   await leaderPage.goto(base + '/penilaian-anggota');
   await ready(leaderPage);
-  await leaderPage.getByRole('button', { name: 'Nilai anggota', exact: true }).click();
+  await leaderPage.getByRole('button', { name: 'Nilai anggota', exact: true }).first().click();
   await leaderPage.getByLabel('Kualitas pekerjaan (0–100)').fill('80');
   await leaderPage.getByRole('button', { name: 'Simpan draft', exact: true }).click();
   await expect(leaderPage.getByRole('dialog')).toHaveCount(0);
-  await leaderPage.getByRole('button', { name: 'Nilai anggota', exact: true }).click();
+  await leaderPage.getByRole('button', { name: 'Nilai anggota', exact: true }).first().click();
   await expect(leaderPage.getByLabel('Kualitas pekerjaan (0–100)')).toHaveValue('80');
   await expect(leaderPage.getByRole('button', { name: 'Review & kirim penilaian' })).toBeDisabled();
   await leaderPage.getByLabel('Kolaborasi tim (0–100)').fill('85');
@@ -217,11 +262,11 @@ try {
   await expect(leaderPage.getByText('Nilai yang akan dikirim', { exact: true })).toBeVisible();
   await leaderPage.getByRole('button', { name: 'Kirim penilaian akhir' }).click();
   await expect(leaderPage.getByRole('dialog')).toHaveCount(0);
-  await leaderPage.getByRole('button', { name: 'Lihat', exact: true }).click();
+  await leaderPage.getByRole('button', { name: 'Lihat', exact: true }).first().click();
   await expect(leaderPage.getByLabel('Kualitas pekerjaan (0–100)')).toBeDisabled();
   expect(errors).toEqual([]);
   console.log(
-    'Browser QA passed: 3 roles plus assigned team leader, real CRUD, chart point navigation, filters, detail tabs, employee and leader draft/review/submit, 1440px desktop and 390px mobile, no page errors or document overflow.',
+    'Browser QA passed: Admin, Supervisor and Pegawai plus assigned team leader, supervisor feedback and own certificate upload, real CRUD, chart point navigation, filters, detail tabs, employee and leader draft/review/submit, 1440px desktop and 390px mobile, no page errors or document overflow.',
   );
 } finally {
   await browser.close();

@@ -417,14 +417,10 @@ function Configuration({ periodId }: { periodId: string }) {
                 </div>
               </section>
             ))}
-            <label className="checkbox-field">
-              <input
-                type="checkbox"
-                name="employee_uploads"
-                defaultChecked={state.data.employee_uploads}
-              />
-              Izinkan pegawai mengunggah bukti sendiri (tetap memerlukan verifikasi Admin)
-            </label>
+            <input type="hidden" name="employee_uploads" value="on" />
+            <p className="muted">
+              Pegawai dapat mengunggah sertifikat sendiri untuk diverifikasi Admin.
+            </p>
             <p className="muted">
               Normalisasi potensi: jawaban 1–5 → 0–100. Bukti kegiatan: jam terverifikasi / target ×
               100 + poin penghargaan, maksimum 100. Setiap pasangan bobot wajib berjumlah 100%.
