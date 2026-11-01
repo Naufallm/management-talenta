@@ -800,7 +800,9 @@ export function EmployeeDetail({
           <p>Kata sandi sementara:</p>
           <code className="credential">{credential.temporaryPassword}</code>
           <p className="muted">
-            Berikan langsung kepada pegawai. Kata sandi wajib diganti saat masuk pertama kali.
+            {credential.mustChangePassword
+              ? 'Berikan langsung kepada pegawai. Kata sandi wajib diganti saat masuk pertama kali.'
+              : 'Akun testing dapat langsung digunakan tanpa mengganti kata sandi.'}
           </p>
         </Dialog>
       )}

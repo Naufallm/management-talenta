@@ -6,8 +6,20 @@ import { hashPassword, verifyPassword, digest, token } from '../security.ts';
 import { assert } from '../errors.ts';
 import { audit, identity, session, cookieOptions, requireSuper } from '../http.ts';
 import { origin } from '../config.ts';
+import { testingLoginEnabled, testingAccounts, testingPassword } from '../testing-policy.ts';
 export function loginRouter(db: DB) {
   const r = Router();
+  r.get('/auth/options', async (_req, res) => {
+    if (!testingLoginEnabled()) {
+      res.json({ testingLogin: false, accounts: [] });
+      return;
+    }
+    const accounts = await db.query(
+      `SELECT u.username,u.role,COALESCE(e.name,u.username) AS name FROM users u LEFT JOIN employees e ON e.id=u.employee_id WHERE u.active AND (e.id IS NULL OR e.active) AND (u.username IN ($1,$2) OR u.role='PEGAWAI') ORDER BY CASE u.role WHEN 'ADMIN' THEN 0 WHEN 'SUPERVISOR' THEN 1 ELSE 2 END,e.name,u.username`,
+      testingAccounts.map((a) => a.username),
+    );
+    res.json({ testingLogin: true, password: testingPassword, accounts });
+  });
   r.post(
     '/auth/login',
     rateLimit({
@@ -122,18 +134,19 @@ export function authRouter(db: DB) {
       400,
       'Gunakan menu ganti kata sandi untuk akun sendiri.',
     );
-    const password = token().slice(0, 20) + '!a1',
+    const mustChangePassword = !testingLoginEnabled();
+    const password = testingLoginEnabled() ? testingPassword : token().slice(0, 20) + '!a1',
       hash = await hashPassword(password);
     await db.transaction(async (tx) => {
       const rows = await tx.query(
-        'UPDATE users SET password_hash=$1,must_change_password=true WHERE id=$2 RETURNING id',
-        [hash, req.params.id],
+        'UPDATE users SET password_hash=$1,must_change_password=$3 WHERE id=$2 RETURNING id',
+        [hash, req.params.id, mustChangePassword],
       );
       assert(rows.length, 404, 'Pengguna tidak ditemukan.');
       await tx.query('DELETE FROM sessions WHERE user_id=$1', [req.params.id]);
       await audit(tx, identity(res).id, 'PASSWORD_RESET', `users/${req.params.id}`);
     });
-    res.json({ temporaryPassword: password });
+    res.json({ temporaryPassword: password, mustChangePassword });
   });
   return r;
 }

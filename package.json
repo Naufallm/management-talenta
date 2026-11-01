@@ -17,6 +17,7 @@
     "db:migrate": "tsx server/db/cli.ts migrate",
     "db:seed": "tsx server/db/cli.ts seed",
     "admin:create": "tsx scripts/create-admin.ts",
+    "auth:reset-testing": "tsx scripts/reset-testing-accounts.ts",
     "test:browser": "tsx scripts/browser-qa.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

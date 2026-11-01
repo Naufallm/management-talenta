@@ -1668,26 +1668,77 @@ fieldset:disabled .answer-options label {
   color: #9aa7b2;
   text-align: center;
 }
-.dev-accounts {
-  margin-top: 30px;
-  font-size: 11px;
-  color: #8a9baa;
-  border-top: 1px solid #edf1f5;
-  padding-top: 15px;
+.quick-login {
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
 }
-.dev-accounts summary {
-  cursor: pointer;
+.quick-login-heading {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.quick-login-heading h3 {
+  font-size: 13px;
+}
+.quick-login-heading > span {
+  font-size: 10px;
+  background: var(--surface);
+  color: var(--blue);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.quick-login > p {
+  font-size: 10px;
+  color: var(--muted);
+  margin: 8px 0 13px;
+}
+.quick-login > p code {
+  font-size: 11px;
+  color: var(--blue);
+}
+.quick-login-roles {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
-.dev-accounts p {
-  margin-top: 10px;
-  font-size: 10px;
-  line-height: 1.9;
+.quick-login-roles > .btn {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  white-space: normal;
 }
-.dev-accounts code {
+.quick-login-roles > .btn > span {
+  flex: 1;
+  min-width: 0;
+}
+.quick-login-roles strong {
+  font-size: 11px;
+  font-weight: 550;
+  display: block;
+}
+.quick-login-roles small {
+  display: block;
   font-size: 10px;
+  color: var(--muted);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.quick-login-roles > .btn > svg {
+  flex-shrink: 0;
+  color: var(--blue);
+}
+.quick-login-employee {
+  margin-top: 16px;
+}
+.quick-login-employee .field {
+  margin-bottom: 9px;
+}
+.quick-login-employee > .btn {
+  width: 100%;
 }
 .fatal-error {
   margin: 100px auto;

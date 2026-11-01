@@ -7,6 +7,7 @@ import { seed } from '../server/db/seed.ts';
 import { createApp } from '../server/app.ts';
 import { importRows } from '../server/domain/import.ts';
 process.env.NODE_ENV = 'test';
+process.env.TEST_LOGIN_ENABLED = 'false';
 process.env.PGLITE_DIR = 'memory://';
 delete process.env.DATABASE_URL;
 process.env.DATA_ENCRYPTION_KEY = 'b'.repeat(64);

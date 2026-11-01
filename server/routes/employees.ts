@@ -6,6 +6,7 @@ import { employeeSchema } from '../../shared/contracts.ts';
 import { assert } from '../errors.ts';
 import { audit, requireManager, ownEmployee, identity, pageParams } from '../http.ts';
 import { token, hashPassword } from '../security.ts';
+import { testingLoginEnabled, testingPassword } from '../testing-policy.ts';
 export function employeeRouter(db: DB) {
   const r = Router();
   r.get('/employees', requireManager, async (req, res) => {
@@ -143,7 +144,8 @@ export function employeeRouter(db: DB) {
     const id = String(req.params.id),
       [employee] = await db.query('SELECT * FROM employees WHERE id=$1 AND active', [id]);
     assert(employee, 404, 'Pegawai aktif tidak ditemukan.');
-    const password = token().slice(0, 20) + '!a1',
+    const mustChangePassword = !testingLoginEnabled();
+    const password = testingLoginEnabled() ? testingPassword : token().slice(0, 20) + '!a1',
       hash = await hashPassword(password);
     await db.transaction(async (tx) => {
       assert(
@@ -152,12 +154,14 @@ export function employeeRouter(db: DB) {
         'Pegawai sudah memiliki akun. Reset kata sandi melalui Admin.',
       );
       await tx.query(
-        `INSERT INTO users(id,username,password_hash,role,employee_id) VALUES($1,$2,$3,'PEGAWAI',$4)`,
-        [randomUUID(), employee.nip, hash, id],
+        `INSERT INTO users(id,username,password_hash,role,employee_id,must_change_password) VALUES($1,$2,$3,'PEGAWAI',$4,$5)`,
+        [randomUUID(), employee.nip, hash, id, mustChangePassword],
       );
       await audit(tx, identity(res).id, 'EMPLOYEE_ACCOUNT_CREATE', `employees/${id}`);
     });
-    res.status(201).json({ username: employee.nip, temporaryPassword: password });
+    res
+      .status(201)
+      .json({ username: employee.nip, temporaryPassword: password, mustChangePassword });
   });
   r.get('/teams', requireManager, async (req, res) => {
     const year = z.coerce

@@ -5,6 +5,7 @@ import { assert } from './errors.ts';
 import { digest, token } from './security.ts';
 import { production, origin } from './config.ts';
 import type { Role } from '../shared/contracts.ts';
+import { testingLoginEnabled } from './testing-policy.ts';
 export interface Identity {
   id: string;
   username: string;
@@ -73,6 +74,7 @@ export function authenticate(db: DB) {
       [digest(value)],
     );
     assert(user, 401, 'Sesi berakhir. Silakan masuk kembali.');
+    if (testingLoginEnabled()) user.must_change_password = false;
     res.locals.user = user;
     res.locals.csrf = user.csrf_token;
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {

@@ -140,7 +140,7 @@ export function UsersPage() {
         <Dialog title="Kata sandi sementara" onClose={() => setPassword('')}>
           <code className="credential">{password}</code>
           <p>
-            Berikan langsung kepada pemilik akun. Kata sandi wajib diganti saat masuk berikutnya.
+            Berikan langsung kepada pemilik akun. Pada mode testing, akun dapat langsung digunakan.
           </p>
         </Dialog>
       )}

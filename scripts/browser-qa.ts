@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { mkdir } from 'node:fs/promises';
 process.env.NODE_ENV = 'test';
+process.env.TEST_LOGIN_ENABLED = 'true';
 process.env.PGLITE_DIR = 'memory://';
 delete process.env.DATABASE_URL;
 process.env.DATA_ENCRYPTION_KEY = 'c'.repeat(64);
@@ -73,24 +74,37 @@ async function noOverflow(page: Page) {
 async function login(page: Page, username: string) {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(base);
-  await page.getByLabel('NIP atau nama akun').fill(username);
-  await page
-    .getByLabel('Kata sandi', { exact: true })
-    .fill(process.env.SEED_PASSWORD || 'TalentaDev!2026');
+  await page.getByLabel('NIP atau email').fill(username);
+  await page.getByLabel('Kata sandi', { exact: true }).fill('123456');
   await page.getByRole('button', { name: 'Masuk ke akun' }).click();
-  await expect(page.getByRole('heading', { name: 'Buat kata sandi baru' })).toBeVisible();
-  await page.getByLabel('Kata sandi saat ini').fill(process.env.SEED_PASSWORD || 'TalentaDev!2026');
-  await page.getByLabel('Kata sandi baru', { exact: true }).fill('BrowserQaSecure!2026');
-  await page.getByLabel('Konfirmasi kata sandi baru').fill('BrowserQaSecure!2026');
-  await page.getByRole('button', { name: 'Perbarui kata sandi' }).click();
   await expect(page.locator('.topbar')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Buat kata sandi baru' })).toHaveCount(0);
+  await ready(page);
+}
+async function quickLogin(page: Page, role: 'Admin' | 'Supervisor' | 'Pegawai', username?: string) {
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(base);
+  await expect(page.getByRole('heading', { name: 'Login cepat', exact: true })).toBeVisible();
+  if (username)
+    await page.getByLabel('Login cepat pegawai', { exact: true }).selectOption(username);
+  await page.getByRole('button', { name: `Masuk sebagai ${role}`, exact: true }).click();
+  await expect(page.locator('.topbar')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Buat kata sandi baru' })).toHaveCount(0);
   await ready(page);
 }
 try {
   await mkdir(outputDir, { recursive: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }),
     page = await context.newPage();
-  await login(page, 'superadmin');
+  await page.goto(base);
+  await expect(page.getByRole('heading', { name: 'Login cepat', exact: true })).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({ path: `${outputDir}/login-desktop.png`, fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await noOverflow(page);
+  await page.screenshot({ path: `${outputDir}/login-mobile.png`, fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await quickLogin(page, 'Admin');
   await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
   await noOverflow(page);
   await page.screenshot({ path: `${outputDir}/dashboard-desktop.png`, fullPage: true });
@@ -163,7 +177,7 @@ try {
   await page.screenshot({ path: `${outputDir}/dashboard-mobile.png`, fullPage: true });
   const adminContext = await browser.newContext({ viewport: { width: 1280, height: 900 } }),
     adminPage = await adminContext.newPage();
-  await login(adminPage, 'admin');
+  await login(adminPage, 'admin@bpskotabatu.com');
   await expect(adminPage.getByRole('link', { name: 'Hasil Psikologi', exact: true })).toHaveCount(
     1,
   );
@@ -172,7 +186,7 @@ try {
   );
   const supervisorContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const supervisorPage = await supervisorContext.newPage();
-  await login(supervisorPage, 'supervisor');
+  await quickLogin(supervisorPage, 'Supervisor');
   await expect(
     supervisorPage.getByRole('link', { name: 'Hasil Psikologi', exact: true }),
   ).toHaveCount(0);
@@ -196,7 +210,7 @@ try {
   await noOverflow(supervisorPage);
   const employeeContext = await browser.newContext({ viewport: { width: 390, height: 844 } }),
     employeePage = await employeeContext.newPage();
-  await login(employeePage, '199001012020011005');
+  await quickLogin(employeePage, 'Pegawai', '199001012020011005');
   for (const path of [
     '/profil',
     '/kompetensi',

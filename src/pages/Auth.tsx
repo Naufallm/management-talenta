@@ -1,12 +1,34 @@
 import { useState } from 'react';
-import { ArrowRight, ShieldCheck, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '../lib/context';
+import { ArrowRight, ShieldCheck, Eye, EyeOff, UserRoundCheck } from 'lucide-react';
+import { useAuth, useApi } from '../lib/context';
 import { post, setCsrf } from '../lib/api';
 import { Brand } from '../components/Layout';
 import { Form, Field, PageHeader, Panel, string, useFeedback, Button } from '../components/ui';
+import type { LoginOptions, QuickLoginAccount } from '../../shared/contracts';
 export function Login() {
   const { refresh, error } = useAuth(),
-    [visible, setVisible] = useState(false);
+    [visible, setVisible] = useState(false),
+    [username, setUsername] = useState(''),
+    [password, setPassword] = useState(''),
+    [submitting, setSubmitting] = useState(false),
+    [selectedEmployee, setSelectedEmployee] = useState(''),
+    options = useApi<LoginOptions>('/auth/options'),
+    { run } = useFeedback();
+  const signIn = async (account: string, secret: string) => {
+    setUsername(account);
+    setPassword(secret);
+    setSubmitting(true);
+    try {
+      const result = await post('/auth/login', { username: account, password: secret });
+      setCsrf(result.csrfToken);
+      await refresh();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  const quickLogin = (account: QuickLoginAccount) =>
+    void run(() => signIn(account.username, options.data!.password!));
+  const employees = options.data?.accounts.filter((account) => account.role === 'PEGAWAI') || [];
   return (
     <div className="login">
       <section className="login-story">
@@ -35,20 +57,16 @@ export function Login() {
           {error && <p className="form-error">{error}</p>}
           <Form
             submit="Masuk ke akun"
-            onSubmit={async (d) => {
-              const result = await post('/auth/login', {
-                username: string(d, 'username'),
-                password: string(d, 'password'),
-              });
-              setCsrf(result.csrfToken);
-              await refresh();
-            }}
+            disabled={submitting}
+            onSubmit={(d) => signIn(string(d, 'username'), string(d, 'password'))}
           >
-            <Field label="NIP atau nama akun">
+            <Field label="NIP atau email">
               <input
                 name="username"
                 autoComplete="username"
-                placeholder="Masukkan NIP / akun"
+                placeholder="Masukkan NIP / email"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
                 autoFocus
                 maxLength={100}
@@ -58,11 +76,14 @@ export function Login() {
               <div className="password-input">
                 <input
                   name="password"
+                  aria-label="Kata sandi"
                   type={visible ? 'text' : 'password'}
                   autoComplete="current-password"
                   placeholder="Masukkan kata sandi"
                   required
                   maxLength={128}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                 />
                 <button
                   type="button"
@@ -75,23 +96,71 @@ export function Login() {
             </Field>
           </Form>
           <p className="login-help">Lupa kata sandi? Hubungi Admin untuk pemulihan akun.</p>
-          {import.meta.env.DEV && (
-            <details className="dev-accounts">
-              <summary>
-                Akun pengembangan <ArrowRight size={13} />
-              </summary>
+          {options.data?.testingLogin && (
+            <section className="quick-login" aria-labelledby="quick-login-title">
+              <div className="quick-login-heading">
+                <h3 id="quick-login-title">Login cepat</h3>
+                <span>Testing</span>
+              </div>
               <p>
-                Supervisor: <code>supervisor</code>
-                <br />
-                Admin: <code>admin</code>
-                <br />
-                Pegawai: <code>199001012020011001</code>
-                <br />
-                Kata sandi awal: <code>TalentaDev!2026</code>
-                <br />
-                Seluruh data seed adalah fiktif. Kata sandi wajib diganti saat masuk pertama kali.
+                Pilih akun untuk langsung masuk. Kata sandi: <code>{options.data.password}</code>
               </p>
-            </details>
+              <div className="quick-login-roles">
+                {options.data.accounts
+                  .filter((account) => account.role !== 'PEGAWAI')
+                  .map((account) => (
+                    <Button
+                      key={account.username}
+                      type="button"
+                      variant="secondary"
+                      disabled={submitting}
+                      onClick={() => quickLogin(account)}
+                      aria-label={`Masuk sebagai ${account.role === 'ADMIN' ? 'Admin' : 'Supervisor'}`}
+                    >
+                      {account.role === 'ADMIN' ? (
+                        <ShieldCheck size={18} />
+                      ) : (
+                        <UserRoundCheck size={18} />
+                      )}
+                      <span>
+                        <strong>{account.role === 'ADMIN' ? 'Admin' : 'Supervisor'}</strong>
+                        <small>{account.username}</small>
+                      </span>
+                      <ArrowRight size={15} />
+                    </Button>
+                  ))}
+              </div>
+              {employees.length > 0 && (
+                <div className="quick-login-employee">
+                  <Field label="Login cepat pegawai">
+                    <select
+                      disabled={submitting}
+                      value={selectedEmployee || employees[0].username}
+                      onChange={(e) => setSelectedEmployee(e.target.value)}
+                    >
+                      {employees.map((account) => (
+                        <option key={account.username} value={account.username}>
+                          {account.name} · {account.username}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={submitting}
+                    onClick={() =>
+                      quickLogin(
+                        employees.find((a) => a.username === selectedEmployee) || employees[0],
+                      )
+                    }
+                  >
+                    Masuk sebagai Pegawai
+                    <ArrowRight size={15} />
+                  </Button>
+                </div>
+              )}
+            </section>
           )}
         </div>
         <small>© {new Date().getFullYear()} BPS Kota Batu</small>

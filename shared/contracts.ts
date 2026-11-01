@@ -12,6 +12,16 @@ export interface User {
   is_leader: boolean;
   csrfToken: string;
 }
+export interface QuickLoginAccount {
+  username: string;
+  role: Role;
+  name: string;
+}
+export interface LoginOptions {
+  testingLogin: boolean;
+  password?: string;
+  accounts: QuickLoginAccount[];
+}
 export const employeeSchema = z.object({
   nip: z.string().regex(/^\d{18}$/, 'NIP harus terdiri dari 18 angka.'),
   name: z.string().trim().min(2, 'Nama minimal 2 karakter.').max(120),

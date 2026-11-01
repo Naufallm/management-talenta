@@ -1,6 +1,17 @@
 # Status implementasi
 
-Tanggal: 27 Oktober 2026, Asia/Jakarta.
+Tanggal awal implementasi: 27 Oktober 2026, Asia/Jakarta.
+
+## Pembaruan branch work — 1 November 2026
+
+- Akun testing Admin memakai `admin@bpskotabatu.com`; Supervisor memakai `supervisor@bpskotabatu.com`, dengan pembatasan peran branch `work` tetap berlaku.
+- Password semua akun testing direset ke `123456`. ID internal pengguna, NIP pegawai, hubungan database, dan hasil penilaian dipertahankan. Sesi lama dihentikan saat reset.
+- Mode testing melewati kewajiban mengganti kata sandi awal. Akun baru dan reset password juga mengikuti password testing yang sama.
+- Halaman login menyediakan tombol Admin/Supervisor dan pilihan pegawai, menggunakan autentikasi API biasa.
+- Reset otomatis hanya satu kali per database; restart berikutnya mempertahankan sesi serta perubahan password. Reset ulang tersedia melalui `npm run auth:reset-testing`.
+- Mode testing aktif di luar produksi pada branch ini, dapat dimatikan melalui `TEST_LOGIN_ENABLED=false`, dan selalu nonaktif saat `NODE_ENV=production`.
+- Bagian di bawah mencatat implementasi awal; pembaruan ini menggantikan ketentuan wajib mengganti password untuk mode testing.
+- Verifikasi pembaruan: 30/30 pengujian unit/API, TypeScript, lint, build, dan QA browser desktop/mobile lulus. Login manual maupun login cepat Admin, Supervisor, dan Pegawai diuji tanpa prompt penggantian password; pembatasan akses Supervisor tetap berlaku.
 
 ## Sumber dan audit awal
 

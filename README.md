@@ -16,15 +16,15 @@ npm run dev
 
 Buka **http://127.0.0.1:5173**. API berjalan di `http://127.0.0.1:3001`. Gunakan alamat `127.0.0.1` sesuai `APP_ORIGIN`, karena mutasi memeriksa Origin dan CSRF.
 
-`setup` membuat `.env` dengan kunci enkripsi acak, menjalankan migration, dan memasukkan seed **hanya jika database belum memiliki akun**. Pengulangan setup tidak menghapus atau menimpa data. Database development adalah PostgreSQL embedded PGlite yang disimpan pada `data/postgres`, bukan mock atau localStorage. Satu proses API menggunakan direktori tersebut pada satu waktu.
+`setup` membuat `.env` dengan kunci enkripsi acak, menjalankan migration, dan memasukkan seed **hanya jika database belum memiliki akun**. Pada branch `work`, mode testing memperbarui ID login Admin/Supervisor dan mereset seluruh password ke `123456` satu kali saat setup atau API pertama dijalankan. Data pegawai, hasil penilaian, dan ID internal database tetap tersimpan. Database development adalah PostgreSQL embedded PGlite yang disimpan pada `data/postgres`, bukan mock atau localStorage. Satu proses API menggunakan direktori tersebut pada satu waktu.
 
-| Peran                                | Akun pengembangan                                    |
-| ------------------------------------ | ---------------------------------------------------- |
-| Admin                                | `admin` (akun lama `superadmin` juga berperan Admin) |
-| Supervisor                           | `supervisor`                                         |
-| Pegawai / Ketua Tim IPDS             | `199001012020011001`                                 |
-| Pegawai anggota IPDS                 | `199001012020011003`                                 |
-| Pegawai dengan asesmen belum dikirim | `199001012020011005`                                 |
+| Peran                                | Akun pengembangan            |
+| ------------------------------------ | ---------------------------- |
+| Admin                                | `admin@bpskotabatu.com`      |
+| Supervisor                           | `supervisor@bpskotabatu.com` |
+| Pegawai / Ketua Tim IPDS             | `199001012020011001`         |
+| Pegawai anggota IPDS                 | `199001012020011003`         |
+| Pegawai dengan asesmen belum dikirim | `199001012020011005`         |
 
 Seed baru berisi **5 pegawai fiktif**. Setup tidak menghapus database lama. Migrasi mengubah akun berperan `SUPER_ADMIN` menjadi `ADMIN`; Supervisor dapat ditetapkan melalui Pengguna & Peran. Daftar pegawai menggunakan kartu responsif, dengan pencarian dan filter.
 
@@ -38,11 +38,21 @@ Seed baru berisi **5 pegawai fiktif**. Setup tidak menghapus database lama. Migr
 
 Feedback tidak bergantung pada periode, tidak wajib bulanan, dan tidak memengaruhi skor. Sertifikat pegawai menunggu verifikasi Admin; ketentuan tahun/periode tetap berlaku.
 
-Kata sandi awal: `TalentaDev!2026`, atau nilai `SEED_PASSWORD` saat seed pertama dibuat. **Setiap akun wajib mengganti kata sandi saat login pertama.** Sesudah diganti, gunakan kata sandi baru Anda. Semua nama, NIP, nilai, dan kegiatan seed adalah data fiktif pengembangan. Seed dinonaktifkan pada `NODE_ENV=production`.
+Password sementara untuk **seluruh akun testing: `123456`**. Tidak ada kewajiban membuat kata sandi baru pada login pertama. NIP tetap menjadi ID login pegawai. Halaman login menyediakan tombol **Masuk sebagai Admin**, **Masuk sebagai Supervisor**, serta pilihan **Login cepat pegawai**; tombol tersebut menggunakan alur login API yang sama dengan form manual.
+
+Mode testing aktif secara default pada branch `work` di luar produksi. `TEST_LOGIN_ENABLED=false` menyembunyikan login cepat dan mengaktifkan kembali kebijakan normal untuk akun baru/reset password. `NODE_ENV=production` selalu menonaktifkan mode testing. Saat mode testing dimatikan, seed development memakai `SEED_PASSWORD`. Semua data seed tetap fiktif.
+
+Reset massal dijalankan satu kali dan tidak diulang pada setiap restart API. Untuk mereset semua password testing kembali ke `123456`, hentikan API terlebih dahulu jika memakai PGlite, lalu jalankan:
+
+```sh
+npm run auth:reset-testing
+```
+
+Reset menghentikan sesi login lama dan mempertahankan data pegawai maupun penilaian. Akun testing baru dan reset password dari menu Pengguna juga memakai `123456` tanpa wajib mengganti sandi.
 
 ## Fitur yang tersedia
 
-- Login, logout, sesi server 8 jam, penggantian kata sandi awal dan reset kata sandi oleh Admin. Akun Pegawai baru dibuat dari detail pegawai; kata sandi sementara ditampilkan satu kali.
+- Login manual/cepat, logout, sesi server 8 jam, dan reset kata sandi oleh Admin. Pada mode testing, akun langsung masuk tanpa mengganti sandi; kebijakan kata sandi normal tetap tersedia saat mode testing dimatikan. Akun Pegawai baru dibuat dari detail pegawai.
 - Daftar pegawai dengan pencarian, filter unit/status, pagination server, tambah/edit, penonaktifan dengan riwayat tersimpan. Detail memiliki tab Profil, Potensi, Kompetensi, CKP, dan Riwayat Talenta.
 - Struktur tim per tahun dan penugasan Ketua Tim. Ketua Tim tetap berperan `PEGAWAI`, dengan endpoint penilaian anggota yang memeriksa penugasan.
 - Periode tahunan, bank soal potensi/psikologi, urutan dan penonaktifan soal. Bank soal terkunci sejak ada draft/jawaban agar instrumen tidak berubah di tengah pengisian.

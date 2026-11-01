@@ -3,11 +3,17 @@ import type { DB } from './index.ts';
 import { hashPassword } from '../security.ts';
 import { potentialScore, calculateEmployee } from '../domain/scoring.ts';
 import type { Question, ScoreConfig } from '../../shared/contracts.ts';
+import { testingLoginEnabled, testingPassword, prepareTestingAccounts } from '../testing-auth.ts';
 export async function seed(db: DB) {
   if (process.env.NODE_ENV === 'production')
     throw new Error('Development seed is disabled in production.');
-  if ((await db.query('SELECT id FROM users LIMIT 1')).length) return;
-  const password = process.env.SEED_PASSWORD || 'TalentaDev!2026';
+  if ((await db.query('SELECT id FROM users LIMIT 1')).length) {
+    if (testingLoginEnabled()) await prepareTestingAccounts(db);
+    return;
+  }
+  const password = testingLoginEnabled()
+    ? testingPassword
+    : process.env.SEED_PASSWORD || 'TalentaDev!2026';
   const hash = await hashPassword(password);
   await db.transaction(async (tx) => {
     await tx.query(
@@ -134,6 +140,7 @@ export async function seed(db: DB) {
       [randomUUID()],
     );
   });
+  if (testingLoginEnabled()) await prepareTestingAccounts(db);
 }
 function roundSeed(v: number) {
   return Math.round(v * 10) / 10;
