@@ -1,0 +1,25 @@
+[Unit]
+Description=Talenta BPS Kota Batu
+Wants=network-online.target
+After=network-online.target postgresql.service
+StartLimitIntervalSec=120
+StartLimitBurst=12
+
+[Service]
+Type=simple
+User=talenta
+Group=talenta
+WorkingDirectory=/var/www/talenta.bpskotabatu.com
+EnvironmentFile=/etc/talenta/talenta.env
+ExecStart=/usr/bin/node --import tsx server/index.ts
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target
