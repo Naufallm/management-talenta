@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { LockKeyhole, Save, Send, ShieldCheck } from 'lucide-react';
 import { useAuth, useApi, usePeriod } from '../lib/context';
-import { put, post } from '../lib/api';
+import { put } from '../lib/api';
 import {
   PageHeader,
   Panel,
@@ -14,7 +13,6 @@ import {
   Field,
   Form,
   number,
-  string,
   useFeedback,
   date,
 } from '../components/ui';
@@ -208,101 +206,6 @@ export function Assessment({ kind = 'potential' }: { kind?: 'potential' | 'psych
               {busy ? 'Mengirim…' : 'Kirim jawaban'}
             </Button>
           </div>
-        </Dialog>
-      )}
-    </>
-  );
-}
-export function AssessmentOverview() {
-  const { period } = usePeriod(),
-    state = useApi(period ? `/assessment-overview/${period.id}` : null),
-    [reopen, setReopen] = useState<any>(null),
-    { notify } = useFeedback();
-  return (
-    <>
-      <PageHeader
-        title="Penilaian Pegawai"
-        description={`Pantau potensi dan kompetensi pegawai · Tahun ${period?.year || '—'}`}
-        actions={
-          <Link className="btn btn-secondary" to="/pengaturan">
-            Kelola periode & soal
-          </Link>
-        }
-      />
-      <Panel
-        title="Progres penilaian"
-        description="Status asesmen potensi dan skor dari sumber penilaian yang tersedia."
-      >
-        <State {...state} retry={state.refresh}>
-          {state.data?.length ? (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Pegawai</th>
-                    <th>Unit</th>
-                    <th>Potensi</th>
-                    <th>Kompetensi</th>
-                    <th>Status potensi</th>
-                    <th>Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {state.data.map((r: any) => (
-                    <tr key={r.id}>
-                      <td>
-                        <Link className="person-link" to={`/pegawai/${r.id}?tab=potensi`}>
-                          {r.name}
-                        </Link>
-                        <small className="mono">{r.nip}</small>
-                      </td>
-                      <td>{r.unit}</td>
-                      <td>{number(r.potential)}</td>
-                      <td>{number(r.competency)}</td>
-                      <td>
-                        <Badge tone={r.submitted_at ? 'green' : 'orange'}>
-                          {r.submitted_at ? 'Terkirim' : 'Belum terkirim'}
-                        </Badge>
-                      </td>
-                      <td>
-                        {r.submitted_at && period?.status === 'OPEN' && (
-                          <Button variant="ghost" onClick={() => setReopen(r)}>
-                            Buka kembali
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <Empty />
-          )}
-        </State>
-      </Panel>
-      {reopen && (
-        <Dialog title="Buka kembali asesmen potensi" onClose={() => setReopen(null)}>
-          <p>
-            Skor potensi dan posisi kuadran <strong>{reopen.name}</strong> dibatalkan sampai pegawai
-            mengirim ulang.
-          </p>
-          <Form
-            submit="Buka asesmen"
-            cancel={() => setReopen(null)}
-            onSubmit={async (d) => {
-              await post(`/assessments/potential/${period!.id}/${reopen.id}/reopen`, {
-                reason: string(d, 'reason'),
-              });
-              setReopen(null);
-              state.refresh();
-              notify('Asesmen dibuka kembali.');
-            }}
-          >
-            <Field label="Alasan pembukaan kembali">
-              <textarea name="reason" required minLength={10} maxLength={500} />
-            </Field>
-          </Form>
         </Dialog>
       )}
     </>

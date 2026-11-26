@@ -1,75 +1,123 @@
 import { useState, Suspense } from 'react';
-import { NavLink, Outlet, Link } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
   ClipboardCheck,
-  ChartScatter,
   ChartColumnIncreasing,
   CalendarDays,
   FileBarChart,
   ShieldCheck,
   ScrollText,
   HeartPulse,
-  UserRound,
   BookOpen,
-  LogOut,
   Menu,
   ChevronDown,
+  Layers,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { useAuth, usePeriod } from '../lib/context';
-import { Button, Dialog, useFeedback, Badge, State } from './ui';
-const adminNav = [
-  ['/', 'Dashboard', LayoutDashboard],
+import { Button, Dialog, Badge, State } from './ui';
+import { Brand } from './Brand';
+import { AccountMenu } from './AccountMenu';
+import './AppTheme.css';
+const adminNav = [['/dashboard', 'Dashboard', LayoutDashboard]] as const;
+const performanceNav = [
+  ['/ckp', 'Capaian Kinerja Pegawai', ChartColumnIncreasing],
+  ['/penghargaan', 'Penghargaan', ShieldCheck],
+  ['/penilaian-ketua', 'Penilaian Ketua Tim', ClipboardCheck],
+] as const;
+const potentialNav = [
+  ['/kompetensi', 'Kompetensi', BookOpen],
+  ['/profil-dna', 'Potensi', ClipboardCheck],
+  ['/kualifikasi', 'Kualifikasi', ShieldCheck],
+] as const;
+const otherMainNav = [['/psikologi', 'Hasil Psikologi', HeartPulse]] as const;
+const administrationNav = [
   ['/pegawai', 'Pegawai', Users],
-  ['/penilaian', 'Penilaian', ClipboardCheck],
-  ['/peta-talenta', 'Peta Talenta', ChartScatter],
-  ['/ckp', 'Kinerja CKP', ChartColumnIncreasing],
+  ['/tim', 'Struktur Tim', Users],
   ['/pengaturan', 'Periode & Bank Soal', CalendarDays],
   ['/laporan', 'Laporan', FileBarChart],
+  ['/pengguna', 'Pengguna & Peran', ShieldCheck],
+  ['/audit', 'Audit Log', ScrollText],
 ] as const;
 const employeeNav = [
-  ['/', 'Beranda', LayoutDashboard],
-  ['/asesmen-potensi', 'Asesmen Potensi', ClipboardCheck],
-  ['/kompetensi', 'Kompetensi Saya', BookOpen],
-  ['/peta-talenta', 'Peta Talenta Saya', ChartScatter],
-  ['/ckp', 'Kinerja CKP Saya', ChartColumnIncreasing],
+  ['/dashboard', 'Beranda', LayoutDashboard],
   ['/asesmen-psikologi', 'Asesmen Psikologi', HeartPulse],
-  ['/profil', 'Profil Saya', UserRound],
 ] as const;
 export const roleLabel = { ADMIN: 'Admin', SUPERVISOR: 'Supervisor', PEGAWAI: 'Pegawai' };
-export function Brand() {
-  return (
-    <Link className="brand" to="/" aria-label="Talenta BPS Kota Batu">
-      <span className="brand-mark">B</span>
-      <span>
-        <strong>TALENTA</strong>
-        <small>BPS KOTA BATU</small>
-      </span>
-    </Link>
-  );
-}
 export function Layout() {
-  const { user, logout } = useAuth(),
+  const pathname = useLocation().pathname;
+  const dashboard = pathname === '/dashboard';
+  const { user } = useAuth(),
     { period, periods, setPeriod } = usePeriod(),
-    { run } = useFeedback(),
-    [mobile, setMobile] = useState(false);
-  const nav = user?.role === 'PEGAWAI' ? employeeNav : adminNav;
+    [mobile, setMobile] = useState(false),
+    [compact, setCompact] = useState(false);
+  const employee = user?.role === 'PEGAWAI';
+  const currentPage =
+    (employee
+      ? [
+          ...employeeNav,
+          ...performanceNav,
+          ...potentialNav,
+          ['/asesmen-potensi', 'Potensi', ClipboardCheck] as const,
+          ['/kinerja', 'Kinerja', ChartColumnIncreasing] as const,
+          ['/potensial', 'Potensial', FileBarChart] as const,
+        ]
+      : [...adminNav, ...otherMainNav, ...administrationNav, ...performanceNav, ...potentialNav]
+    ).find(([path]) => pathname === path)?.[1] ||
+    ({ '/kinerja': 'Kinerja', '/potensial': 'Potensial' } as Record<string, string>)[pathname] ||
+    (pathname === '/profil' ? 'Profil Saya' : 'Ruang kerja');
+  const renderLinks = (items: ReadonlyArray<readonly [string, string, typeof Users]>) =>
+    items.map(([path, label, Icon]) => (
+      <NavLink
+        key={path}
+        to={path}
+        end={path === '/dashboard'}
+        aria-label={label}
+        title={label}
+        onClick={() => setMobile(false)}
+      >
+        <Icon size={18} />
+        <span>{label}</span>
+      </NavLink>
+    ));
   const links = (
     <>
       <p className="nav-caption">MENU UTAMA</p>
       <nav aria-label="Menu utama">
-        {nav
-          .filter(
-            ([path]) =>
-              user?.role !== 'SUPERVISOR' || !['/pengaturan', '/penilaian'].includes(path),
-          )
-          .map(([path, label, Icon]) => (
-            <NavLink key={path} to={path} end={path === '/'} onClick={() => setMobile(false)}>
-              <Icon size={18} />
-              <span>{label}</span>
+        {renderLinks(employee ? employeeNav.slice(0, 1) : adminNav)}
+        {[
+          ['Kinerja', performanceNav, '/kinerja'],
+          ['Potensial', potentialNav, '/potensial'],
+        ].map(([title, items, href]) => (
+          <div className="nav-talent-group" key={title as string}>
+            <NavLink
+              className="nav-parent nav-section-home"
+              to={href as string}
+              onClick={() => setMobile(false)}
+              title={`Ringkasan ${title as string}`}
+            >
+              <Layers size={18} />
+              <span>{title as string}</span>
             </NavLink>
-          ))}
+            <nav className="nav-submenu" aria-label={title as string}>
+              {renderLinks(
+                (items as typeof potentialNav).map(
+                  ([path, label, icon]) =>
+                    [
+                      employee && path === '/profil-dna' ? '/asesmen-potensi' : path,
+                      label,
+                      icon,
+                    ] as const,
+                ),
+              )}
+            </nav>
+          </div>
+        ))}
+        {employee && renderLinks(employeeNav.slice(1))}
+        {!employee && user?.role === 'ADMIN' && renderLinks(otherMainNav)}
         {user?.role === 'PEGAWAI' && user.is_leader && (
           <NavLink to="/penilaian-anggota" onClick={() => setMobile(false)}>
             <Users size={18} />
@@ -77,51 +125,29 @@ export function Layout() {
           </NavLink>
         )}
       </nav>
-      {user?.role === 'ADMIN' && (
+      {!employee && (
         <>
           <p className="nav-caption secondary-caption">ADMINISTRASI</p>
           <nav aria-label="Administrasi">
-            <NavLink to="/psikologi" onClick={() => setMobile(false)}>
-              <HeartPulse size={18} />
-              Hasil Psikologi
-            </NavLink>
-            <NavLink to="/pengguna" onClick={() => setMobile(false)}>
-              <ShieldCheck size={18} />
-              Pengguna & Peran
-            </NavLink>
-            <NavLink to="/audit" onClick={() => setMobile(false)}>
-              <ScrollText size={18} />
-              Audit Log
-            </NavLink>
+            {renderLinks(
+              administrationNav.filter(
+                ([path]) => user?.role === 'ADMIN' || path === '/pegawai' || path === '/laporan',
+              ),
+            )}
           </nav>
         </>
-      )}
-      {user && (
-        <div className="sidebar-account">
-          <span className="avatar small">{user.name.charAt(0)}</span>
-          <div>
-            <strong>{roleLabel[user.role]}</strong>
-            <small>{user.name}</small>
-          </div>
-          <Button
-            variant="ghost"
-            aria-label="Keluar"
-            title="Keluar"
-            onClick={() => void run(logout)}
-          >
-            <LogOut size={17} />
-          </Button>
-        </div>
       )}
     </>
   );
   return (
-    <div className="app-layout">
+    <div
+      className={`app-layout${dashboard ? ' dashboard-shell' : ''}${compact ? ' nav-compact' : ''}`}
+    >
       <a className="skip-link" href="#main">
         Lewati ke konten utama
       </a>
-      <aside className="sidebar">
-        <Brand />
+      <aside className="sidebar" aria-label="Navigasi aplikasi">
+        <Brand to="/dashboard" />
         {links}
       </aside>
       {mobile && (
@@ -132,6 +158,15 @@ export function Layout() {
       <div className="workspace">
         <header className="topbar">
           <Button
+            className="desktop-nav-toggle"
+            variant="ghost"
+            aria-label={compact ? 'Perluas navigasi' : 'Ringkas navigasi'}
+            aria-expanded={!compact}
+            onClick={() => setCompact(!compact)}
+          >
+            {compact ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
+          </Button>
+          <Button
             className="mobile-toggle"
             variant="ghost"
             aria-label="Buka navigasi"
@@ -140,9 +175,10 @@ export function Layout() {
             <Menu size={22} />
           </Button>
           <div className="breadcrumb">
-            <span>BPS KOTA BATU</span>
-            <span>/</span>
-            <span>SISTEM MANAJEMEN TALENTA</span>
+            <LayoutDashboard size={21} aria-hidden="true" />
+            <div>
+              <strong>{currentPage}</strong>
+            </div>
           </div>
           <div className="topbar-right">
             <label className="period-select">
@@ -169,18 +205,25 @@ export function Layout() {
                   ? 'Periode ditutup'
                   : 'Draft'}
             </Badge>
-            <Link className="avatar top-avatar" to="/akun" aria-label="Pengaturan akun">
-              {user?.name.charAt(0)}
-            </Link>
+            <AccountMenu />
           </div>
         </header>
         <main id="main" className="main">
+          {period?.demo_data && (
+            <div className="demo-data-notice" role="note">
+              <strong>Data dummy sementara · {period.year}</strong>
+              <span>
+                Pelatihan, penghargaan, tim dan nilai pada periode ini adalah simulasi aplikasi,
+                bukan penilaian pegawai yang sebenarnya.
+              </span>
+            </div>
+          )}
           <Suspense fallback={<State loading />}>
             <Outlet />
           </Suspense>
         </main>
         <footer className="workspace-footer">
-          <span>Talenta · BPS Kota Batu</span>
+          <span>Talenta BPS · BPS Kota Batu</span>
           <span>Potensi bertumbuh. Kinerja berdampak.</span>
         </footer>
       </div>

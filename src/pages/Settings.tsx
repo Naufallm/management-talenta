@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { NineBoxSettingsPanel } from '../components/NineBoxForms';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Pencil, ArrowLeft, Users } from 'lucide-react';
+import { Plus, Pencil, ArrowLeft, Users, Trash2 } from 'lucide-react';
 import { useApi, usePeriod } from '../lib/context';
-import { post, put } from '../lib/api';
+import { api, post, put } from '../lib/api';
 import {
   PageHeader,
   Panel,
@@ -20,11 +21,17 @@ import {
 } from '../components/ui';
 import { EmployeeSelect } from '../components/EmployeeSelect';
 import type { Period, Question, ScoreConfig } from '../../shared/contracts';
+import { dnaClusters, dnaClusterInfo, type DnaQuestion } from '../../shared/potential-dna';
 export function Settings() {
   const { period, periods, refresh, loading, error } = usePeriod(),
     [tab, setTab] = useState('periods'),
     [editing, setEditing] = useState<Partial<Period> | null>(null),
+    [editingDna, setEditingDna] = useState(false),
     { notify } = useFeedback();
+  useEffect(() => setEditingDna(false), [period?.id]);
+  const instrument = useApi<{ questions: DnaQuestion[]; revision: string }>(
+    tab === 'potential' && period ? `/potential-dna/instrument/${period.id}` : null,
+  );
   return (
     <>
       <PageHeader
@@ -76,20 +83,8 @@ export function Settings() {
                         <td>{date(p.starts_on)}</td>
                         <td>{date(p.ends_on)}</td>
                         <td>
-                          <Badge
-                            tone={
-                              p.status === 'OPEN'
-                                ? 'green'
-                                : p.status === 'DRAFT'
-                                  ? 'orange'
-                                  : 'neutral'
-                            }
-                          >
-                            {p.status === 'OPEN'
-                              ? 'Terbuka'
-                              : p.status === 'DRAFT'
-                                ? 'Draft'
-                                : 'Ditutup'}
+                          <Badge tone={p.status === 'OPEN' ? 'green' : 'neutral'}>
+                            {p.status === 'OPEN' ? 'Terbuka' : 'Ditutup'}
                           </Badge>
                         </td>
                         <td>
@@ -114,16 +109,67 @@ export function Settings() {
       )}
       {(tab === 'potential' || tab === 'psych') &&
         (period ? (
-          <QuestionBank kind={tab} periodId={period.id} />
+          tab === 'potential' ? (
+            <>
+              <Panel
+                title="Bank soal potensi Drive / Network / Action"
+                description="30 pernyataan, masing-masing 10 per klaster. Redaksi dikelola Admin untuk periode terpilih."
+                actions={
+                  <Button
+                    variant="secondary"
+                    disabled={!instrument.data || period.status !== 'OPEN'}
+                    onClick={() => setEditingDna(true)}
+                  >
+                    Edit bank soal
+                  </Button>
+                }
+              >
+                <p className="muted">
+                  Skala slider 0–100, mulai dari 50. Bobot setiap pernyataan sama. Acuan formasi
+                  menggunakan tabel empat formasi dalam dokumen.
+                </p>
+                <State {...instrument} retry={instrument.refresh}>
+                  {dnaClusters.map((cluster) => (
+                    <details className="dna-answer-group" key={cluster}>
+                      <summary>{dnaClusterInfo[cluster].name} · 10 pernyataan</summary>
+                      <ol>
+                        {instrument.data?.questions
+                          .filter((q) => q.cluster === cluster)
+                          .map((q) => (
+                            <li key={q.id}>
+                              <p>
+                                {q.number}. {q.text}
+                              </p>
+                            </li>
+                          ))}
+                      </ol>
+                    </details>
+                  ))}
+                </State>
+              </Panel>
+            </>
+          ) : (
+            <QuestionBank kind={tab} periodId={period.id} />
+          )
         ) : (
           <Empty title="Buat periode terlebih dahulu" />
         ))}
       {tab === 'config' &&
-        (period ? (
-          <Configuration periodId={period.id} />
-        ) : (
-          <Empty title="Buat periode terlebih dahulu" />
-        ))}
+        (period ? <NineBoxSettingsPanel /> : <Empty title="Buat periode terlebih dahulu" />)}
+      {editingDna && period && instrument.data && (
+        <DnaBankDialog
+          key={period.id}
+          questions={instrument.data.questions}
+          revision={instrument.data.revision}
+          periodId={period.id}
+          onClose={() => setEditingDna(false)}
+          onSaved={() => {
+            setEditingDna(false);
+            instrument.refresh();
+            notify('Bank soal potensi disimpan.');
+          }}
+        />
+      )}
       {editing && (
         <Dialog
           title={editing.id ? 'Edit periode' : 'Tambah periode'}
@@ -185,8 +231,7 @@ export function Settings() {
               </Field>
             </div>
             <Field label="Status">
-              <select name="status" defaultValue={editing.status || 'DRAFT'}>
-                <option value="DRAFT">Draft</option>
+              <select name="status" defaultValue={editing.status || 'CLOSED'}>
                 <option value="OPEN">Terbuka</option>
                 <option value="CLOSED">Ditutup</option>
               </select>
@@ -195,6 +240,69 @@ export function Settings() {
         </Dialog>
       )}
     </>
+  );
+}
+function DnaBankDialog({
+  questions,
+  revision,
+  periodId,
+  onClose,
+  onSaved,
+}: {
+  questions: DnaQuestion[];
+  revision: string;
+  periodId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [cluster, setCluster] = useState<string>('DRIVE'),
+    [draft, setDraft] = useState(() => Object.fromEntries(questions.map((q) => [q.id, q.text])));
+  return (
+    <Dialog title="Edit bank soal potensi" onClose={onClose}>
+      <p className="muted">
+        Edit redaksi pernyataan untuk periode ini. Nomor, klaster, dan bobot mengikuti struktur 30
+        soal. Riwayat jawaban tetap menggunakan redaksi saat pengisian.
+      </p>
+      <Form
+        cancel={onClose}
+        submit="Simpan bank soal"
+        onSubmit={async () => {
+          const invalid = questions.find(
+            (q) => draft[q.id].trim().length < 5 || draft[q.id].trim().length > 2000,
+          );
+          if (invalid) {
+            setCluster(invalid.cluster || 'DRIVE');
+            throw new Error(`Periksa pernyataan ${invalid.number}: isi 5-2000 karakter.`);
+          }
+          await put(`/potential-dna/instrument/${periodId}`, {
+            revision,
+            questions: questions.map((q) => ({ id: q.id, text: draft[q.id] })),
+          });
+          onSaved();
+        }}
+      >
+        <Tabs
+          items={dnaClusters.map((id) => ({ id, label: dnaClusterInfo[id].name }))}
+          active={cluster}
+          onChange={setCluster}
+        />
+        <div className="dna-bank-editor">
+          {questions
+            .filter((q) => q.cluster === cluster)
+            .map((q) => (
+              <Field key={q.id} label={`Pernyataan ${q.number}`}>
+                <textarea
+                  value={draft[q.id]}
+                  minLength={5}
+                  maxLength={2000}
+                  required
+                  onChange={(e) => setDraft({ ...draft, [q.id]: e.target.value })}
+                />
+              </Field>
+            ))}
+        </div>
+      </Form>
+    </Dialog>
   );
 }
 function QuestionBank({ kind, periodId }: { kind: 'potential' | 'psych'; periodId: string }) {
@@ -325,7 +433,7 @@ function QuestionBank({ kind, periodId }: { kind: 'potential' | 'psych'; periodI
     </Panel>
   );
 }
-function Configuration({ periodId }: { periodId: string }) {
+export function LegacyConfiguration({ periodId }: { periodId: string }) {
   const state = useApi<ScoreConfig>(`/periods/${periodId}/config`),
     { notify, confirm } = useFeedback();
   const groups = [
@@ -435,6 +543,7 @@ export function Teams() {
   const { period } = usePeriod(),
     state = useApi(period ? `/teams?year=${period.year}` : null),
     [newTeam, setNewTeam] = useState(false),
+    [editingTeam, setEditingTeam] = useState<{ id: string; name: string } | null>(null),
     [assignment, setAssignment] = useState<any>(null),
     { notify, run, confirm } = useFeedback();
   return (
@@ -445,7 +554,7 @@ export function Teams() {
       </Link>
       <PageHeader
         title="Struktur Tim"
-        description={`Penugasan anggota dan Ketua Tim · Tahun ${period?.year || '—'}`}
+        description={`Penugasan anggota dan Ketua Tim per tim · Tahun ${period?.year || '—'}`}
         actions={
           <Button onClick={() => setNewTeam(true)}>
             <Plus size={16} />
@@ -453,17 +562,54 @@ export function Teams() {
           </Button>
         }
       />
+      <p className="page-footnote">
+        Peran berlaku per tim. Pegawai dapat menjadi Ketua Tim pada satu tim sekaligus anggota pada
+        tim lain.
+      </p>
       <State {...state} retry={state.refresh}>
         {state.data?.teams.length ? (
           state.data.teams.map((t: any) => (
             <Panel
               key={t.id}
+              className="team-panel"
               title={t.name}
               actions={
-                <Button variant="secondary" onClick={() => setAssignment(t)}>
-                  <Users size={16} />
-                  Atur anggota
-                </Button>
+                <div className="row-actions">
+                  <Button
+                    variant="secondary"
+                    aria-label={`Edit nama tim ${t.name}`}
+                    onClick={() => setEditingTeam(t)}
+                  >
+                    <Pencil size={16} />
+                    Edit nama
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    aria-label={`Hapus tim ${t.name}`}
+                    onClick={async () => {
+                      if (
+                        await confirm({
+                          title: 'Hapus tim?',
+                          description: `Hapus tim ${t.name}? Tim hanya dapat dihapus jika tidak memiliki penugasan pada tahun mana pun.`,
+                          danger: true,
+                          label: 'Hapus tim',
+                        })
+                      )
+                        void run(async () => {
+                          await api(`/teams/${t.id}`, { method: 'DELETE' });
+                          state.refresh();
+                          notify('Tim dihapus.');
+                        });
+                    }}
+                  >
+                    <Trash2 size={16} />
+                    Hapus
+                  </Button>
+                  <Button variant="secondary" onClick={() => setAssignment(t)}>
+                    <Users size={16} />
+                    Atur anggota
+                  </Button>
+                </div>
               }
             >
               {state.data.members.filter((m: any) => m.team_id === t.id).length ? (
@@ -536,19 +682,36 @@ export function Teams() {
           <Empty />
         )}
       </State>
-      {newTeam && (
-        <Dialog title="Tambah tim" onClose={() => setNewTeam(false)}>
+      {(newTeam || editingTeam) && (
+        <Dialog
+          title={editingTeam ? 'Edit nama tim' : 'Tambah tim'}
+          onClose={() => {
+            setNewTeam(false);
+            setEditingTeam(null);
+          }}
+        >
           <Form
-            cancel={() => setNewTeam(false)}
-            onSubmit={async (d) => {
-              await post('/teams', { name: string(d, 'name') });
+            cancel={() => {
               setNewTeam(false);
+              setEditingTeam(null);
+            }}
+            onSubmit={async (d) => {
+              if (editingTeam) await put(`/teams/${editingTeam.id}`, { name: string(d, 'name') });
+              else await post('/teams', { name: string(d, 'name') });
+              setNewTeam(false);
+              setEditingTeam(null);
               state.refresh();
-              notify('Tim ditambahkan.');
+              notify(editingTeam ? 'Nama tim diperbarui.' : 'Tim ditambahkan.');
             }}
           >
             <Field label="Nama tim">
-              <input name="name" required minLength={2} maxLength={100} />
+              <input
+                name="name"
+                defaultValue={editingTeam?.name || ''}
+                required
+                minLength={2}
+                maxLength={100}
+              />
             </Field>
           </Form>
         </Dialog>
@@ -576,8 +739,10 @@ export function Teams() {
               Tetapkan sebagai Ketua Tim
             </label>
             <p className="muted">
-              Satu Ketua Tim per tahun. Penetapan Ketua Tim baru menggantikan penugasan ketua
-              sebelumnya. Struktur tahun berjalan terkunci setelah ada penilaian Ketua Tim terkirim.
+              Satu Ketua Tim per tim per tahun. Pegawai yang menjadi anggota dapat ditetapkan
+              sebagai Ketua Tim; penugasan pada tim lain tetap berlaku. Penetapan ketua baru
+              menjadikan ketua sebelumnya anggota pada tim ini. Struktur tahun berjalan terkunci
+              setelah ada penilaian Ketua Tim terkirim.
             </p>
           </Form>
         </Dialog>

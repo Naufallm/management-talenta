@@ -1,0 +1,45 @@
+Matriks 9 Box - aturan implementasi lokal 23 November 2026
+
+Y (Kinerja) = 0.70 x rata-rata CKP + 0.15 x skor penghargaan + 0.15 x rata-rata penilaian ketua tim terkirim.
+CKP tahun berjalan hanya memakai bulan tercatat sampai bulan berjalan (kalender Asia/Jakarta). Tahun sebelumnya memakai seluruh bulan tercatat. Bulan kosong tidak dianggap nol.
+Penghargaan: tertinggi yang terverifikasi dalam periode/tahun terpilih. Poin internal BPS: kota 5, provinsi 10, nasional 20. Eksternal: kota 10, provinsi 15, nasional 25. Normalisasi = poin / 25 x 100; kontribusi Y = poin / 25 x 15. Artinya nasional eksternal maksimal 15 poin. Tidak adanya penghargaan terverifikasi bernilai 0; penghargaan terverifikasi yang belum diklasifikasikan membuat komponen belum lengkap.
+
+X (Potensial) = 30% pelatihan + 10% pengalaman jabatan + 30% asesmen potensi + 15% pendidikan formal + 15% kesesuaian bidang ilmu.
+Pelatihan = jam terverifikasi / target tahunan x 100, maksimum 100. Default target 40 jam, dapat diubah Admin.
+Pengalaman = peran tertinggi pada tahun terpilih / 20 x 100. Ketua tim 20, anggota 5, tanpa penugasan 0. Rangkap tim tidak menggandakan poin.
+Asesmen = rata-rata mentah 30 jawaban DNA yang sudah dikirim (0-100). Komposisi D/N/A total 100% dan kecenderungan formasi tetap ditampilkan terpisah. Pilihan input hasil asesmen Admin tersedia di konfigurasi, dengan sumber dan tanggal wajib.
+Pendidikan = skor jenjang yang telah dikonfirmasi Admin berdasarkan riwayat pendidikan. Default SD 20, SMP 30, SMA 40, D1 50, D2 60, D3 70, D4/S1 80, S2 90, S3 100. Semua skor dapat diubah Admin dan merupakan acuan awal aplikasi.
+Kesesuaian dinilai per pelatihan terhadap pekerjaan. Rata-rata poin pelatihan terverifikasi sampai tanggal perhitungan (sesuai 10, tidak sesuai 0) dibagi 10 lalu dikali 15. Jika baru sebagian dinilai, komponen belum lengkap. Selama belum ada penilaian individual yang memenuhi syarat, nilai historis periode tetap digunakan jika tersedia.
+
+Default kategori masing-masing sumbu: rendah <60; sedang >=60 dan <80; tinggi >=80. Batas dapat diubah Admin per periode, harus berurutan dan berbeda. Bobot tetap berjumlah 100 pada masing-masing sumbu.
+Urutan box dari kiri ke kanan: atas 4/7/9, tengah 2/5/8, bawah 1/3/6. Box 7/8/9 kelompok rencana suksesi; 4/5/6 pengembangan; 1/2/3 tindak lanjut kinerja.
+Posisi baru dihitung setelah data wajib lengkap. Nilai asesmen, pendidikan terkonfirmasi, kesesuaian, CKP, atau penilaian ketua tim yang belum tersedia tidak dianggap nol.
+
+Admin: semua pegawai, filter tim/box/pencarian, rincian kontribusi, CSV, konfigurasi, konfirmasi kualifikasi, klasifikasi penghargaan.
+Supervisor: membaca semua pegawai/rincian dan CSV; tidak dapat mengubah konfigurasi, nilai kualifikasi, atau klasifikasi penghargaan.
+Pegawai: hanya posisi dan rincian sendiri; tidak menerima seluruh roster melalui API. Form pendukung milik sendiri tetap tersedia sesuai hak akses.
+Menu dipisah menjadi Kinerja dan Potensial. Dashboard, profil, laporan, dan beranda publik menggunakan penjelasan metode baru.
+
+Migrasi 008 bersifat penambahan tabel konfigurasi/input dan kolom klasifikasi penghargaan. Tidak menghapus data lama dan tidak merekayasa klasifikasi penghargaan atau jenjang pendidikan lama. Arsip metode empat kuadran disimpan sebagai riwayat metode sebelumnya; endpoint lama dipertahankan untuk kompatibilitas.
+Perhitungan 9 box dibaca langsung dari sumber data sehingga perubahan CKP, pelatihan, penghargaan, DNA, tim, atau penilaian ketua tim tercermin pada pemuatan berikutnya.
+
+Verifikasi: npm run build; npm run lint; npm test; npx tsx scripts/nine-box-browser-qa.ts. Browser QA memakai database sementara terpisah dan menghasilkan test-results/nine-box/*.png.
+Belum diterapkan ke produksi. Jangan menjalankan skrip dummy/review deployment lama untuk migrasi ini karena skrip tersebut berisi pengisian ulang simulasi.
+
+Revisi tampilan dan dummy lokal 23 November 2026
+- Navigasi Kinerja: Capaian Kinerja Pegawai, Penghargaan, Penilaian Ketua Tim. Judul kelompok membuka ringkasan sumbu.
+- Navigasi Potensial: Kompetensi, Potensi, Kualifikasi. Kompetensi berisi pelatihan dan pengalaman jabatan; Kualifikasi berisi pendidikan dan kesesuaian bidang ilmu. Pilihan cabang mendukung keyboard dan mempertahankan pegawai yang dipilih.
+- Pegawai hanya menggunakan Beranda untuk posisi box. URL posisi lama diarahkan ke Beranda; Admin/Supervisor tetap mempunyai matriks seluruh pegawai.
+- Tampilan desktop: hero beranda, matriks yang lebih jelas, kartu nilai ringkas, rincian yang dapat dibuka, dan tab cabang di dalam halaman.
+- Dummy lengkap dibuat pada database baru data/postgres-nine-box-review-20261123-v1; database sebelumnya tidak diubah. Konfigurasi .env sebelumnya disimpan privat pada deploy/state/nine-box-review-20261123/before-review.env.
+- 24 pegawai aktif, Adam tetap di arsip; dua periode 2025/2026. Setiap periode memiliki CKP 12 bulan, pelatihan terverifikasi, 4 penghargaan terklasifikasi, penugasan tim, penilaian dari ketua yang benar dan bukan diri sendiri, DNA dengan satu kecenderungan utama, serta kualifikasi lengkap.
+- Seluruh nilai sumbu berada pada kategori sedang/tinggi; posisi tersebar di box 5/7/8/9. Herlina lalu Nurlaila adalah dua nilai tertinggi. Asal simulasi tercatat pada audit internal; bukan perubahan data produksi.
+- Jalankan npm run demo:nine-box-local untuk menyiapkan ulang database simulasi yang sama secara idempoten. Skrip menolak production/DATABASE_URL dan tidak menimpa database lain yang telah berisi data. Konfigurasi lokal saat ini sudah menunjuk database baru.
+
+Revisi editor
+- Matriks hanya tersedia pada Dashboard; menu dan URL halaman matriks terpisah mengarah ke Dashboard.
+- Tabel CKP menampilkan angka biasa dan satu tombol Edit pada kolom Aksi yang tetap terlihat di kanan. Form tahunan memuat semua 12 bulan walaupun tabel difilter per bulan. Penyimpanan atomik; nilai 0 dibedakan dari kosong. Kosong menghapus nilai bulan itu dan perubahan disimpan pada audit.
+- Bagian bank soal manajerial/teknis lama tidak ditampilkan. Data historis metode sebelumnya tetap tersimpan.
+- Admin dapat mengedit redaksi 30 soal DNA per periode melalui Edit bank soal. Struktur nomor, klaster, dan bobot dipertahankan.
+- Migrasi 009 menambah redaksi soal per periode dan salinan redaksi pada asesmen. Jawaban lama menggunakan redaksi saat diisi; redaksi baru digunakan pengisian baru. Kontrol revisi mencegah penyimpanan halaman edit yang sudah kedaluwarsa. Periode tertutup hanya dapat dilihat.
+- npm run test:browser kini memakai QA desktop yang mencakup navigasi terbaru, edit CKP tahunan, dan edit bank soal.

@@ -1,21 +1,30 @@
+import { BoxPosition, ScoreBreakdown } from '../components/NineBoxMatrix';
+import type { NineBoxResponse } from '../../shared/nine-box';
 import { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus,
   Search,
   ArrowLeft,
-  ArrowUpRight,
+  Eye,
   Pencil,
-  UserRound,
   Users,
   Mail,
   Phone,
   Building2,
   KeyRound,
-  UserRoundX,
-  Check,
+  Archive,
+  ArchiveRestore,
 } from 'lucide-react';
 import { useApi, useAuth, usePeriod } from '../lib/context';
+import { EmployeeDnaReview } from '../components/DnaResults';
+import { Education } from '../components/Education';
+import { CompetencyEvidence } from '../components/CompetencyEvidence';
+import { EmployeeAvatar } from '../components/EmployeeAvatar';
+import { UserAccessDialog } from '../components/UserAccessDialog';
+import { DnaHistory } from '../components/DnaHistory';
+import { FilterBar } from '../components/FilterBar';
+import { TransitionState } from '../components/TransitionState';
 import { api, post, put, patch } from '../lib/api';
 import {
   PageHeader,
@@ -37,6 +46,8 @@ import {
 import type { Employee, EmployeeInput } from '../../shared/contracts';
 export function EmployeeList() {
   const { user } = useAuth();
+  const { period } = usePeriod();
+  const { run, confirm } = useFeedback();
   const canEdit = user?.role === 'ADMIN';
   const [search, setSearch] = useState(''),
     [q, setQ] = useState(''),
@@ -50,9 +61,17 @@ export function EmployeeList() {
     }, 250);
     return () => clearTimeout(id);
   }, [search]);
-  const query = new URLSearchParams({ q, unit, status, page: String(page) }),
+  const query = new URLSearchParams({
+      q,
+      unit,
+      status,
+      year: String(period?.year || new Date().getFullYear()),
+      page: String(page),
+      limit: '8',
+    }),
     state = useApi<{ rows: Employee[]; total: number; units: string[]; limit: number }>(
       `/employees?${query}`,
+      { keepPreviousData: true },
     );
   const { data } = state;
   return (
@@ -79,62 +98,65 @@ export function EmployeeList() {
       />
       <Panel
         title="Data kepegawaian"
-        description="Identitas, unit kerja, dan status kepegawaian dalam satu tempat."
+        description={
+          status === 'inactive'
+            ? 'Pegawai yang diarsipkan. Profil dan seluruh riwayat tetap tersimpan.'
+            : 'Identitas dan unit kerja pegawai dalam satu tempat.'
+        }
         actions={<Badge>{data?.total ?? '—'} pegawai</Badge>}
       >
-        <div className="toolbar">
-          <label className="search-input">
-            <Search size={17} />
-            <input
-              aria-label="Cari pegawai"
-              placeholder="Cari nama, NIP, atau jabatan…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </label>
-          <select
-            aria-label="Filter unit kerja"
-            value={unit}
-            onChange={(e) => {
-              setUnit(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">Semua unit kerja</option>
-            {data?.units.map((u) => (
-              <option key={u}>{u}</option>
-            ))}
-          </select>
-          <select
-            aria-label="Filter status pegawai"
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="active">Pegawai aktif</option>
-            <option value="inactive">Nonaktif</option>
-            <option value="all">Semua status</option>
-          </select>
-        </div>
-        <State {...state} retry={state.refresh}>
+        <FilterBar label="Filter daftar pegawai" className="employee-list-filters">
+          <Field label="Pencarian">
+            <div className="search-input">
+              <Search size={17} />
+              <input
+                aria-label="Cari pegawai"
+                placeholder="Cari nama, NIP, atau jabatan…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </Field>
+          <Field label="Unit kerja">
+            <select
+              aria-label="Filter unit kerja"
+              value={unit}
+              onChange={(e) => {
+                setUnit(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">Semua unit kerja</option>
+              {data?.units.map((u) => (
+                <option key={u}>{u}</option>
+              ))}
+            </select>
+          </Field>
+          {canEdit && (
+            <Field label="Daftar pegawai">
+              <select
+                aria-label="Filter status pegawai"
+                value={status}
+                onChange={(e) => {
+                  setStatus(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="active">Daftar pegawai</option>
+                <option value="inactive">Arsip pegawai</option>
+              </select>
+            </Field>
+          )}
+        </FilterBar>
+        <TransitionState {...state} retry={state.refresh}>
           {data?.rows.length ? (
             <>
               <div className="employee-grid">
-                {data.rows.map((e, i) => (
+                {data.rows.map((e) => (
                   <article className="employee-card" key={e.id}>
                     <div className="employee-card-top">
-                      <span className={`avatar avatar-${i % 4}`}>
-                        {e.name
-                          .split(' ')
-                          .slice(0, 2)
-                          .map((n) => n[0])
-                          .join('')}
-                      </span>
-                      <Badge tone={e.active ? 'green' : 'neutral'}>
-                        {e.active ? 'Aktif' : 'Nonaktif'}
-                      </Badge>
+                      <EmployeeAvatar size="card" employeeId={e.id} version={e.photo_version} />
+                      {e.is_leader && <Badge tone="blue">Ketua Tim</Badge>}
                     </div>
                     <h3>
                       <Link to={`/pegawai/${e.id}`}>{e.name}</Link>
@@ -148,16 +170,45 @@ export function EmployeeList() {
                     </div>
                     <div className="employee-card-actions">
                       <Link className="text-link" to={`/pegawai/${e.id}`}>
-                        Lihat profil <ArrowUpRight size={16} />
+                        Lihat profil <Eye size={16} aria-hidden="true" />
                       </Link>
                       {canEdit && (
-                        <Link
-                          className="icon-link"
-                          aria-label={`Edit ${e.name}`}
-                          to={`/pegawai/${e.id}/edit`}
-                        >
-                          <Pencil size={16} />
-                        </Link>
+                        <span className="employee-actions">
+                          <Link
+                            className="icon-link"
+                            aria-label={`Edit ${e.name}`}
+                            to={`/pegawai/${e.id}/edit`}
+                          >
+                            <Pencil size={16} />
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            aria-label={`${e.active ? 'Arsipkan' : 'Pulihkan'} ${e.name}`}
+                            title={e.active ? 'Arsipkan pegawai' : 'Pulihkan pegawai'}
+                            onClick={async () => {
+                              if (
+                                e.active &&
+                                !(await confirm({
+                                  title: 'Arsipkan pegawai?',
+                                  description: `${e.name} tidak lagi muncul di daftar utama dan tidak dapat login. Seluruh riwayat tetap tersimpan di arsip.`,
+                                  label: 'Arsipkan',
+                                }))
+                              )
+                                return;
+                              void run(
+                                async () => {
+                                  if (e.active)
+                                    await api(`/employees/${e.id}`, { method: 'DELETE' });
+                                  else await post(`/employees/${e.id}/restore`);
+                                  state.refresh();
+                                },
+                                e.active ? 'Pegawai diarsipkan.' : 'Pegawai dipulihkan.',
+                              );
+                            }}
+                          >
+                            {e.active ? <Archive size={16} /> : <ArchiveRestore size={16} />}
+                          </Button>
+                        </span>
                       )}
                     </div>
                   </article>
@@ -175,7 +226,7 @@ export function EmployeeList() {
               }
             />
           )}
-        </State>
+        </TransitionState>
       </Panel>
       <p className="page-footnote">
         Data kepegawaian menjadi dasar penugasan tim dan penilaian tahunan.
@@ -214,7 +265,7 @@ export function EmployeeForm() {
                 unit: string(d, 'unit'),
                 email: string(d, 'email'),
                 phone: string(d, 'phone'),
-                active: d.get('active') === 'on',
+                active: employee?.active ?? true,
               };
               const result = id
                 ? await put(`/employees/${id}`, body)
@@ -255,7 +306,9 @@ export function EmployeeForm() {
                 />
               </Field>
               <Field label="Golongan">
-                <select name="grade" defaultValue={employee?.grade || 'III/a'}>
+                <select name="grade" defaultValue={employee?.grade ?? ''}>
+                  <option value="">Belum tersedia</option>
+                  {employee?.grade && <option value={employee.grade}>{employee.grade}</option>}
                   {[
                     'I/a',
                     'I/b',
@@ -275,6 +328,12 @@ export function EmployeeForm() {
                     'IV/d',
                     'IV/e',
                     'PPPK',
+                    'III',
+                    'V',
+                    'VIII',
+                    'IX',
+                    'X',
+                    'XI',
                   ].map((g) => (
                     <option key={g}>{g}</option>
                   ))}
@@ -296,10 +355,6 @@ export function EmployeeForm() {
                 <input name="phone" type="tel" defaultValue={employee?.phone} maxLength={30} />
               </Field>
             </div>
-            <label className="checkbox-field">
-              <input type="checkbox" name="active" defaultChecked={employee?.active ?? true} />
-              Pegawai aktif
-            </label>
           </Form>
         </Panel>
       </State>
@@ -314,26 +369,24 @@ export function EmployeeDetail({
   initialTab?: string;
 }) {
   const params = useParams(),
-    { user } = useAuth(),
+    { user, refresh: refreshAuth } = useAuth(),
     { period } = usePeriod(),
     id = self ? user?.employee_id : params.id,
-    state = useApi(id ? `/employees/${id}` : null),
+    state = useApi(id ? `/employees/${id}?year=${period?.year || new Date().getFullYear()}` : null),
     { data } = state;
   const [search, setSearch] = useSearchParams(),
-    tab = search.get('tab') || initialTab,
-    [evidence, setEvidence] = useState(false),
+    tab = self ? initialTab : search.get('tab') || initialTab,
     [credential, setCredential] = useState<any>(null),
+    [editingProfile, setEditingProfile] = useState(false),
+    [editingAccess, setEditingAccess] = useState(false),
     { run, confirm } = useFeedback();
   const employee = data?.employee as Employee | undefined,
     isManager = user?.role === 'ADMIN';
-
-  const potential = data?.potential.find((r: any) => r.period_id === period?.id),
-    competency = data?.competency.find((r: any) => r.period_id === period?.id),
-    history = data?.history.find((r: any) => r.period_id === period?.id),
-    ckp = data?.ckp.filter((r: any) => r.year === period?.year) || [];
-  const ckpAverage = ckp.length
-    ? ckp.reduce((s: number, r: any) => s + r.score, 0) / ckp.length
-    : null;
+  const accounts = useApi(isManager && employee?.has_account ? '/users' : null);
+  const account = accounts.data?.find((entry: { employee_id: string }) => entry.employee_id === id);
+  const boxState = useApi<NineBoxResponse>(period ? `/nine-box/${period.id}` : null);
+  const box = boxState.data?.rows.find((row) => row.employee_id === id);
+  const ckp = data?.ckp.filter((r: any) => r.year === period?.year) || [];
   return (
     <>
       {!self && (
@@ -356,28 +409,57 @@ export function EmployeeDetail({
             : 'Identitas dan riwayat pengembangan pegawai.'
         }
         actions={
-          isManager &&
-          employee && (
-            <Link className="btn btn-secondary" to={`/pegawai/${id}/edit`}>
-              <Pencil size={16} />
-              Edit Pegawai
-            </Link>
-          )
+          <>
+            {isManager && employee?.has_account && (
+              <Button
+                variant="secondary"
+                disabled={!account || account.id === user?.id}
+                title={
+                  account?.id === user?.id
+                    ? 'Peran akun sendiri tidak dapat diubah.'
+                    : 'Atur akses Pegawai, Supervisor, dan Admin'
+                }
+                onClick={() => setEditingAccess(true)}
+              >
+                <KeyRound size={16} />
+                Kelola peran
+              </Button>
+            )}
+            {isManager && employee && (
+              <Link className="btn btn-secondary" to={`/pegawai/${id}/edit`}>
+                <Pencil size={16} />
+                Edit Pegawai
+              </Link>
+            )}
+            {(self || isManager) && employee && employee.active && (
+              <Button onClick={() => setEditingProfile(true)}>
+                <Pencil size={16} />
+                Edit profil & foto
+              </Button>
+            )}
+          </>
         }
       />
+      {editingAccess && account && (
+        <UserAccessDialog
+          editing={account}
+          onClose={() => setEditingAccess(false)}
+          onSaved={accounts.refresh}
+        />
+      )}
       <State {...state} retry={state.refresh}>
         {employee && (
           <>
             <Panel className="identity-panel">
               <div className="identity-main">
-                <div className="avatar large">
-                  <UserRound size={30} />
-                </div>
+                <EmployeeAvatar
+                  size="large"
+                  employeeId={employee.id}
+                  version={employee.photo_version}
+                />
                 <div>
                   <div className="inline">
-                    <Badge tone={employee.active ? 'green' : 'neutral'}>
-                      {employee.active ? 'Aktif' : 'Nonaktif'}
-                    </Badge>
+                    {employee.is_leader && <Badge tone="blue">Ketua Tim</Badge>}
                     <span className="muted">{employee.grade}</span>
                   </div>
                   <h2>{employee.name}</h2>
@@ -406,17 +488,27 @@ export function EmployeeDetail({
                 )}
               </div>
             </Panel>
-            <Tabs
-              items={[
-                { id: 'profil', label: 'Profil' },
-                { id: 'potensi', label: 'Potensi' },
-                { id: 'kompetensi', label: 'Kompetensi' },
-                { id: 'ckp', label: 'Kinerja CKP' },
-                { id: 'riwayat', label: 'Riwayat Talenta' },
-              ]}
-              active={tab}
-              onChange={(t) => setSearch({ tab: t })}
-            />
+            {!employee.active && (
+              <Panel
+                title="Profil dalam arsip"
+                description="Riwayat tetap tersimpan. Pegawai tidak tampil di daftar utama dan tidak dapat login."
+              >
+                <p className="muted">Admin dapat memulihkan pegawai dari arsip.</p>
+              </Panel>
+            )}
+            {!self && (
+              <Tabs
+                items={[
+                  { id: 'profil', label: 'Profil' },
+                  { id: 'potensi', label: 'Potensi' },
+                  { id: 'kompetensi', label: 'Kompetensi' },
+                  { id: 'ckp', label: 'Capaian Kinerja Pegawai' },
+                  { id: 'riwayat', label: 'Riwayat Talenta' },
+                ]}
+                active={tab}
+                onChange={(t) => setSearch({ tab: t })}
+              />
+            )}
             {tab === 'profil' && (
               <div className="two-col">
                 <Panel title="Data kepegawaian">
@@ -455,215 +547,43 @@ export function EmployeeDetail({
                   )}
                 </Panel>
                 <Panel title="Ringkasan penilaian" description={`Tahun ${period?.year || '—'}`}>
-                  <dl className="detail-list scores">
-                    <div>
-                      <dt>Potensi</dt>
-                      <dd>
-                        {number(potential?.score)}
-                        <small>Sumber: asesmen manajerial & teknis</small>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Kompetensi</dt>
-                      <dd>
-                        {number(competency?.score)}
-                        <small>Sumber: bukti terverifikasi & Ketua Tim</small>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>CKP rata-rata</dt>
-                      <dd>
-                        {number(ckpAverage)}
-                        <small>{ckp.length} bulan tercatat</small>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Kuadran</dt>
-                      <dd>{history?.quadrant || 'Belum tersedia'}</dd>
-                    </div>
-                  </dl>
+                  <State {...boxState} retry={boxState.refresh}>
+                    {box ? <BoxPosition row={box} /> : <Empty title="Posisi belum tersedia" />}
+                  </State>
                 </Panel>
               </div>
             )}
+            {tab === 'profil' && (
+              <Education key={employee.id + '/' + editingProfile} employee={employee} />
+            )}
             {tab === 'potensi' && (
-              <Panel
-                title="Riwayat skor potensi"
-                description="Skala jawaban 1–5 dinormalisasi ke 0–100, kemudian dibobotkan per kategori."
-              >
-                {data.potential.length ? (
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Tahun</th>
-                          <th>Manajerial</th>
-                          <th>Teknis</th>
-                          <th>Skor akhir</th>
-                          <th>Versi konfigurasi</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.potential.map((s: any) => (
-                          <tr key={s.period_id}>
-                            <td>{s.year}</td>
-                            <td>{number(s.managerial)}</td>
-                            <td>{number(s.technical)}</td>
-                            <td>
-                              <strong>{number(s.score)}</strong>
-                            </td>
-                            <td>v{s.config_version}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <Empty
-                    title="Belum ada skor potensi"
-                    description="Skor tersedia setelah asesmen dikirim."
-                  />
-                )}
-              </Panel>
+              <>
+                {id && <DnaHistory key={id} employeeId={id} />}
+                {period && id && <EmployeeDnaReview periodId={period.id} employeeId={id} />}
+              </>
             )}
             {tab === 'kompetensi' && (
               <>
-                <div className="metric-grid three">
-                  <Metric
-                    label="Bukti kegiatan"
-                    value={number(competency?.evidence)}
-                    hint="Pelatihan & penghargaan terverifikasi"
-                  />
-                  <Metric
-                    label="Penilaian Ketua Tim"
-                    value={number(competency?.leader)}
-                    hint="Rata-rata penilaian yang sudah dikirim"
-                  />
-                  <Metric
-                    label="Skor kompetensi"
-                    value={number(competency?.score)}
-                    hint={
-                      competency?.score == null
-                        ? 'Menunggu komponen penilaian lengkap'
-                        : 'Dihitung dengan bobot periode terpilih'
-                    }
-                  />
-                </div>
-                <Panel
-                  title="Pelatihan & penghargaan"
-                  description="Bukti yang terverifikasi berkontribusi terhadap skor kompetensi."
-                  actions={
-                    (isManager || user?.role === 'PEGAWAI') &&
-                    period && (
-                      <Button onClick={() => setEvidence(true)}>
-                        <Plus size={16} />
-                        Tambah sertifikat
-                      </Button>
-                    )
-                  }
-                >
-                  {data.evidence.filter((r: any) => r.period_id === period?.id).length ? (
-                    <div className="table-wrap">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Kegiatan</th>
-                            <th>Tanggal</th>
-                            <th>Jam</th>
-                            <th>Status</th>
-                            <th>Bukti / Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {data.evidence
-                            .filter((r: any) => r.period_id === period?.id)
-                            .map((r: any) => (
-                              <tr key={r.id}>
-                                <td>
-                                  <strong>{r.name}</strong>
-                                  <small>
-                                    {r.kind === 'training' ? 'Pelatihan' : 'Penghargaan'} ·{' '}
-                                    {r.organizer}
-                                  </small>
-                                </td>
-                                <td>{date(r.activity_date)}</td>
-                                <td>{number(r.hours)}</td>
-                                <td>
-                                  <Badge tone={r.verified ? 'green' : 'orange'}>
-                                    {r.verified ? 'Terverifikasi' : 'Menunggu verifikasi'}
-                                  </Badge>
-                                </td>
-                                <td>
-                                  <div className="row-actions">
-                                    {r.document_id && (
-                                      <a
-                                        className="text-link"
-                                        href={`/api/documents/${r.document_id}`}
-                                      >
-                                        Unduh
-                                      </a>
-                                    )}
-                                    {isManager && (
-                                      <>
-                                        <Button
-                                          variant="ghost"
-                                          title={
-                                            r.verified ? 'Batalkan verifikasi' : 'Verifikasi bukti'
-                                          }
-                                          onClick={() =>
-                                            void run(async () => {
-                                              await patch(`/evidence/${r.kind}/${r.id}/verify`, {
-                                                verified: !r.verified,
-                                              });
-                                              state.refresh();
-                                            })
-                                          }
-                                        >
-                                          <Check size={16} />
-                                        </Button>
-                                        <Button
-                                          variant="ghost"
-                                          onClick={async () => {
-                                            if (
-                                              await confirm({
-                                                title: 'Hapus kegiatan?',
-                                                description:
-                                                  'Bukti kegiatan akan dihapus dan skor kompetensi dihitung ulang.',
-                                                danger: true,
-                                                label: 'Hapus',
-                                              })
-                                            )
-                                              void run(async () => {
-                                                await api(`/evidence/${r.kind}/${r.id}`, {
-                                                  method: 'DELETE',
-                                                });
-                                                state.refresh();
-                                              });
-                                          }}
-                                        >
-                                          Hapus
-                                        </Button>
-                                      </>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <Empty
-                      title="Belum ada kegiatan pada periode ini"
-                      description="Admin mengelola dan memverifikasi bukti pelatihan serta penghargaan."
-                    />
-                  )}
-                </Panel>
+                {box && (
+                  <Panel title="Rincian penilaian 9 box">
+                    <ScoreBreakdown row={box} />
+                  </Panel>
+                )}
+                <CompetencyEvidence
+                  employee={employee}
+                  period={period}
+                  rows={data.evidence}
+                  onSaved={() => {
+                    state.refresh();
+                    boxState.refresh();
+                  }}
+                />
               </>
             )}
             {tab === 'ckp' && (
               <Panel
-                title={`Kinerja CKP ${period?.year || ''}`}
-                description="Penilaian CKP dicatat terpisah dari sumbu peta talenta."
+                title={`Capaian Kinerja Pegawai ${period?.year || ''}`}
+                description="Rata-rata CKP menyumbang 70% sumbu kinerja (Y)."
               >
                 {ckp.length ? (
                   <div className="table-wrap">
@@ -672,7 +592,7 @@ export function EmployeeDetail({
                         <tr>
                           <th>Bulan</th>
                           <th>Tahun</th>
-                          <th>Skor CKP</th>
+                          <th>Nilai kinerja</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -696,7 +616,10 @@ export function EmployeeDetail({
               </Panel>
             )}
             {tab === 'riwayat' && (
-              <Panel title="Riwayat peta talenta">
+              <Panel
+                title="Arsip pemetaan sebelumnya"
+                description="Riwayat metode empat kuadran. Posisi saat ini menggunakan matriks 9 box pada periode yang dipilih."
+              >
                 {data.history.length ? (
                   <div className="table-wrap">
                     <table>
@@ -727,7 +650,7 @@ export function EmployeeDetail({
                 ) : (
                   <Empty
                     title="Peta talenta belum tersedia"
-                    description="Potensi dan kompetensi harus lengkap untuk menentukan kuadran."
+                    description="Pilih periode untuk melihat hasil matriks 9 box."
                   />
                 )}
               </Panel>
@@ -735,43 +658,58 @@ export function EmployeeDetail({
             {id && <EmployeeFeedback employeeId={id} />}
             {isManager && (
               <div className="detail-admin-actions">
-                <Button
-                  variant="secondary"
-                  onClick={async () => {
-                    if (
-                      await confirm({
-                        title: 'Buat akun pegawai?',
-                        description:
-                          'Kata sandi sementara akan ditampilkan satu kali. Berikan langsung kepada pegawai terkait.',
-                      })
-                    )
-                      void run(async () => setCredential(await post(`/employees/${id}/account`)));
-                  }}
-                >
-                  <KeyRound size={16} />
-                  Buat akun
-                </Button>
+                {!employee.has_account && employee.active && (
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      if (
+                        await confirm({
+                          title: 'Buat akun pegawai?',
+                          description:
+                            'Kata sandi sementara akan ditampilkan satu kali. Berikan langsung kepada pegawai terkait.',
+                        })
+                      )
+                        void run(async () => setCredential(await post(`/employees/${id}/account`)));
+                    }}
+                  >
+                    <KeyRound size={16} />
+                    Buat akun
+                  </Button>
+                )}
                 {employee.active && (
                   <Button
                     variant="ghost"
                     onClick={async () => {
                       if (
                         await confirm({
-                          title: 'Nonaktifkan pegawai?',
+                          title: 'Arsipkan pegawai?',
                           description:
                             'Akses masuk pegawai akan dihentikan. Seluruh riwayat penilaian tetap tersimpan.',
-                          label: 'Nonaktifkan',
+                          label: 'Arsipkan',
                           danger: true,
                         })
                       )
                         void run(async () => {
                           await api(`/employees/${id}`, { method: 'DELETE' });
                           state.refresh();
-                        }, 'Pegawai dinonaktifkan.');
+                        }, 'Pegawai diarsipkan.');
                     }}
                   >
-                    <UserRoundX size={16} />
-                    Nonaktifkan pegawai
+                    <Archive size={16} />
+                    Arsipkan pegawai
+                  </Button>
+                )}
+                {!employee.active && (
+                  <Button
+                    onClick={() =>
+                      void run(async () => {
+                        await post(`/employees/${id}/restore`);
+                        state.refresh();
+                      }, 'Pegawai dipulihkan.')
+                    }
+                  >
+                    <ArchiveRestore size={16} />
+                    Pulihkan dari arsip
                   </Button>
                 )}
               </div>
@@ -779,16 +717,13 @@ export function EmployeeDetail({
           </>
         )}
       </State>
-      {evidence && id && period && (
-        <EvidenceDialog
-          employeeId={id}
-          periodId={period.id}
-          year={period.year}
-          isManager={isManager}
-          onClose={() => setEvidence(false)}
-          onSave={() => {
-            setEvidence(false);
+      {editingProfile && employee && (
+        <ProfileEditor
+          employee={employee}
+          onClose={() => setEditingProfile(false)}
+          onSaved={async () => {
             state.refresh();
+            await refreshAuth();
           }}
         />
       )}
@@ -809,6 +744,88 @@ export function EmployeeDetail({
     </>
   );
 }
+function ProfileEditor({
+  employee,
+  onClose,
+  onSaved,
+}: {
+  employee: Employee;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const { run, confirm } = useFeedback();
+  return (
+    <Dialog title="Edit profil & foto" onClose={onClose}>
+      <div className="employee-photo-editor">
+        <EmployeeAvatar size="large" employeeId={employee.id} version={employee.photo_version} />
+        <span>Foto profil ditampilkan pada akun dan data pegawai.</span>
+        {employee.photo_version && (
+          <Button
+            variant="ghost"
+            onClick={async () => {
+              if (
+                await confirm({
+                  title: 'Hapus foto profil?',
+                  description: 'Ikon profil standar akan digunakan kembali.',
+                  label: 'Hapus foto',
+                })
+              )
+                void run(async () => {
+                  await api(`/employees/${employee.id}/photo`, { method: 'DELETE' });
+                  await onSaved();
+                }, 'Foto dihapus.');
+            }}
+          >
+            Hapus foto
+          </Button>
+        )}
+      </div>
+      <Form
+        submit="Simpan foto"
+        onSubmit={async (d) => {
+          const file = d.get('file') as File;
+          if (!file?.size) throw new Error('Pilih foto terlebih dahulu.');
+          if (file.size > 2 * 1024 * 1024) throw new Error('Foto maksimal 2 MB.');
+          const form = new FormData();
+          form.append('file', file);
+          await api(`/employees/${employee.id}/photo`, { method: 'POST', body: form });
+          await onSaved();
+        }}
+      >
+        <Field label="Foto profil" hint="JPEG atau PNG. Maksimal 2 MB dan 16 megapiksel.">
+          <input type="file" name="file" accept="image/jpeg,image/png" required />
+        </Field>
+      </Form>
+      <Form
+        submit="Simpan profil"
+        cancel={onClose}
+        onSubmit={async (d) => {
+          await patch(`/employees/${employee.id}/profile`, {
+            name: string(d, 'name'),
+            email: string(d, 'email'),
+            phone: string(d, 'phone'),
+          });
+          await onSaved();
+          onClose();
+        }}
+      >
+        <Field label="Nama lengkap">
+          <input name="name" defaultValue={employee.name} required minLength={2} maxLength={120} />
+        </Field>
+        <Field label="Email kontak" hint="Perubahan email kontak tidak mengubah ID login.">
+          <input name="email" type="email" defaultValue={employee.email} maxLength={150} />
+        </Field>
+        <Field label="Nomor telepon">
+          <input name="phone" type="tel" defaultValue={employee.phone} maxLength={30} />
+        </Field>
+        <p className="muted">
+          NIP, jabatan, golongan, unit kerja, dan akses akun dikelola oleh Admin.
+        </p>
+      </Form>
+      <Education employee={employee} editable />
+    </Dialog>
+  );
+}
 export function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="metric">
@@ -816,103 +833,6 @@ export function Metric({ label, value, hint }: { label: string; value: string; h
       <strong>{value}</strong>
       {hint && <small>{hint}</small>}
     </div>
-  );
-}
-function EvidenceDialog({
-  employeeId,
-  periodId,
-  year,
-  isManager,
-  onClose,
-  onSave,
-}: {
-  employeeId: string;
-  periodId: string;
-  year: number;
-  isManager: boolean;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  return (
-    <Dialog title="Tambah sertifikat" onClose={onClose}>
-      <Form
-        submit="Simpan kegiatan"
-        cancel={onClose}
-        onSubmit={async (d) => {
-          let documentId = null;
-          const file = d.get('file') as File;
-          if (file?.size) {
-            const form = new FormData();
-            form.append('file', file);
-            form.append('employee_id', employeeId);
-            form.append('period_id', periodId);
-            const result = await api('/documents', { method: 'POST', body: form });
-            documentId = result.id;
-          }
-          await post(`/evidence/${periodId}`, {
-            employee_id: employeeId,
-            kind: string(d, 'kind'),
-            name: string(d, 'name'),
-            activity_type: string(d, 'activity_type'),
-            activity_date: string(d, 'activity_date'),
-            organizer: string(d, 'organizer'),
-            hours: Number(d.get('hours')),
-            document_id: documentId,
-            verified: d.get('verified') === 'on',
-          });
-          onSave();
-        }}
-      >
-        <div className="form-grid">
-          <Field label="Jenis kegiatan">
-            <select name="kind">
-              <option value="training">Pelatihan</option>
-              <option value="achievement">Penghargaan</option>
-            </select>
-          </Field>
-          <Field label="Kategori">
-            <input name="activity_type" placeholder="Contoh: Teknis" required minLength={2} />
-          </Field>
-        </div>
-        <Field label="Nama kegiatan">
-          <input name="name" required minLength={3} maxLength={200} />
-        </Field>
-        <Field label="Penyelenggara">
-          <input name="organizer" required minLength={2} />
-        </Field>
-        <div className="form-grid">
-          <Field label="Tanggal">
-            <input
-              type="date"
-              name="activity_date"
-              min={`${year}-01-01`}
-              max={`${year}-12-31`}
-              required
-            />
-          </Field>
-          <Field label="Jumlah jam">
-            <input
-              type="number"
-              name="hours"
-              min="0"
-              max="10000"
-              step="0.5"
-              defaultValue="0"
-              required
-            />
-          </Field>
-        </div>
-        <Field label="Sertifikat / dokumen bukti" hint="PDF, PNG, atau JPEG. Maksimum 2 MB.">
-          <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" />
-        </Field>
-        {isManager && (
-          <label className="checkbox-field">
-            <input type="checkbox" name="verified" />
-            Tandai sebagai terverifikasi
-          </label>
-        )}
-      </Form>
-    </Dialog>
   );
 }
 

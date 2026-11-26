@@ -367,6 +367,49 @@ test('CKP and report pagination preserve aggregate values and full CSV export', 
   assert.equal(csv.text.trim().split(/\r?\n/).length, report.body.total + 1);
   assert(!csv.text.includes('psych'));
 });
+test('monthly employee comparison includes all active employees independent of pagination, with missing values distinct from zero', async () => {
+  const response = await admin.agent.get(
+    '/api/ckp/employees?year=2026&month=10&employee_id=emp-4&page=2&limit=1',
+  );
+  assert.equal(response.status, 200, response.text);
+  const active = await db.query(
+    'SELECT id AS employee_id,name,nip FROM employees WHERE active ORDER BY name,id',
+  );
+  assert.deepEqual(
+    response.body.rows.map(({ score: _score, ...employee }: any) => employee),
+    active,
+  );
+  assert.equal(response.body.rows.find((row: any) => row.employee_id === 'emp-4').score, 0);
+  assert.ok(response.body.rows.some((row: any) => row.score === null));
+  assert.equal(response.body.month, 10);
+  assert.equal(response.body.year, 2026);
+  const january = await admin.agent.get('/api/ckp/employees?year=2026&month=1');
+  assert.ok(january.body.rows.some((row: any) => row.score > 0));
+  const emptyYear = await admin.agent.get('/api/ckp/employees?year=2025&month=1');
+  assert.equal(emptyYear.body.rows.length, active.length);
+  assert.ok(emptyYear.body.rows.every((row: any) => row.score === null));
+});
+test('monthly employee comparison enforces personal access and validates month and year', async () => {
+  const own = await employee.agent.get('/api/ckp/employees?year=2026&month=1&employee_id=emp-1');
+  assert.equal(own.status, 200);
+  assert.equal(own.body.rows.length, 1);
+  assert.equal(own.body.rows[0].employee_id, 'emp-5');
+  const managerResult = await admin.agent.get('/api/ckp/employees?year=2026&month=1');
+  const supervisorResult = await superadmin.agent.get('/api/ckp/employees?year=2026&month=1');
+  assert.deepEqual(supervisorResult.body, managerResult.body);
+  assert.equal((await request(app).get('/api/ckp/employees?year=2026&month=1')).status, 401);
+  for (const query of [
+    'year=2026&month=0',
+    'year=2026&month=13',
+    'year=2026&month=1.5',
+    'year=2019&month=1',
+    'year=2101&month=1',
+    'year=invalid&month=1',
+    'year=2026',
+    'month=1',
+  ])
+    assert.equal((await admin.agent.get('/api/ckp/employees?' + query)).status, 422, query);
+});
 test('CKP import validates every row and rolls back all writes on any error', async () => {
   const nip = '199001012020011005',
     bad = `nip,bulan,tahun,skor\n${nip},10,2026,90\n${nip},11,2026,101`,
@@ -421,18 +464,27 @@ test('employee can upload own certificates; Admin verification recalculates comp
     document_id: null,
     verified: true,
   };
-  assert.equal((await mutate(employee, 'post', '/evidence/period-2026', payload)).status, 201);
+  const draft = await mutate(employee, 'post', '/evidence/period-2026', payload);
+  assert.equal(draft.status, 201);
   const doc = await admin.agent
     .post('/api/documents')
     .set('X-CSRF-Token', admin.csrf)
     .field('employee_id', 'emp-5')
     .field('period_id', 'period-2026')
+    .field('kind', 'training')
+    .field('evidence_id', draft.body.id)
     .attach('file', Buffer.from('%PDF-1.4\n%%EOF'), 'bukti.pdf');
   assert.equal(doc.status, 201, doc.text);
+  assert.equal(
+    (await db.query('SELECT document_id FROM trainings WHERE id=$1', [draft.body.id]))[0]
+      .document_id,
+    doc.body.id,
+  );
   assert.equal((await leader.agent.get('/api/documents/' + doc.body.id)).status, 403);
   assert.equal((await employee.agent.get('/api/documents/' + doc.body.id)).status, 200);
   const evidence = await mutate(admin, 'post', '/evidence/period-2026', {
     ...payload,
+    job_match: true,
     document_id: doc.body.id,
   });
   assert.equal(evidence.status, 201, evidence.text);

@@ -46,7 +46,6 @@ export function PageHeader({
   return (
     <header className="page-heading">
       <div>
-        <div className="eyebrow">MANAJEMEN TALENTA</div>
         <h1>{title}</h1>
         {description && <p>{description}</p>}
       </div>
@@ -224,6 +223,7 @@ export function Dialog({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const d = ref.current;
     d?.showModal();
@@ -237,6 +237,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
+      aria-labelledby={titleId}
       className="dialog"
       onCancel={(e) => {
         e.preventDefault();
@@ -247,7 +248,7 @@ export function Dialog({
       }}
     >
       <div className="dialog-heading">
-        <h2>{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <Button variant="ghost" aria-label="Tutup dialog" onClick={onClose}>
           <X size={20} />
         </Button>
@@ -390,9 +391,27 @@ export function Tabs({
         <button
           key={t.id}
           role="tab"
+          type="button"
           aria-selected={t.id === active}
-          tabIndex={0}
+          tabIndex={t.id === active ? 0 : -1}
           onClick={() => onChange(t.id)}
+          onKeyDown={(event) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            const index = items.findIndex((item) => item.id === t.id);
+            const next =
+              event.key === 'Home'
+                ? 0
+                : event.key === 'End'
+                  ? items.length - 1
+                  : (index + (event.key === 'ArrowRight' ? 1 : -1) + items.length) % items.length;
+            onChange(items[next].id);
+            const buttons =
+              event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+                '[role="tab"]',
+              );
+            buttons?.item(next).focus();
+          }}
         >
           {t.label}
         </button>

@@ -19,3 +19,10 @@ export const months = [
   'Nov',
   'Des',
 ];
+
+export const quadrantLabels: Record<string, string> = {
+  'Talenta Unggul': 'Kuadran IV - Talenta Unggul',
+  'Profesional Andal': 'Kuadran II - Profesional Andal',
+  'Talenta Berkembang': 'Kuadran III - Talenta Berkembang',
+  'Perlu Pengembangan': 'Kuadran I - Perlu Pengembangan',
+};

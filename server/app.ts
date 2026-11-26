@@ -1,3 +1,4 @@
+import { nineBoxRouter } from './routes/nine-box.ts';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -16,6 +17,7 @@ import { periodRouter } from './routes/periods.ts';
 import { assessmentRouter } from './routes/assessments.ts';
 import { evidenceRouter } from './routes/evidence.ts';
 import { analyticsRouter } from './routes/analytics.ts';
+import { potentialDnaRouter } from './routes/potential-dna.ts';
 export function createApp(db: DB) {
   const app = express();
   app.disable('x-powered-by');
@@ -64,8 +66,10 @@ export function createApp(db: DB) {
     employeeRouter(db),
     periodRouter(db),
     assessmentRouter(db),
+    potentialDnaRouter(db),
     evidenceRouter(db),
     analyticsRouter(db),
+    nineBoxRouter(db),
   );
   app.use('/api', api);
   app.use('/api', (_req, _res, next) => next(new HttpError(404, 'Endpoint tidak ditemukan.')));

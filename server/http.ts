@@ -10,6 +10,7 @@ export interface Identity {
   id: string;
   username: string;
   role: Role;
+  roles: Role[];
   employee_id: string | null;
   name: string;
   must_change_password: boolean;
@@ -51,13 +52,13 @@ export const cookieOptions = {
   path: '/',
   maxAge: 8 * 60 * 60 * 1000,
 };
-export async function session(db: DB, userId: string, res: Response) {
+export async function session(db: DB, userId: string, res: Response, activeRole?: Role) {
   const value = token(),
     csrf = token();
   await db.query('DELETE FROM sessions WHERE expires_at<now()');
   await db.query(
-    `INSERT INTO sessions(token_hash,user_id,csrf_token,expires_at) VALUES($1,$2,$3,now()+interval '8 hours')`,
-    [digest(value), userId, csrf],
+    `INSERT INTO sessions(token_hash,user_id,csrf_token,expires_at,active_role) VALUES($1,$2,$3,now()+interval '8 hours',$4)`,
+    [digest(value), userId, csrf, activeRole ?? null],
   );
   res.cookie('talenta_session', value, cookieOptions);
   return csrf;
@@ -67,10 +68,11 @@ export function authenticate(db: DB) {
     const value = req.cookies?.talenta_session;
     assert(typeof value === 'string', 401, 'Silakan masuk terlebih dahulu.');
     const [user] = await db.query(
-      `SELECT u.id,u.username,u.role,u.employee_id,u.must_change_password,COALESCE(e.name,u.username) AS name,s.csrf_token,
+      `SELECT u.id,u.username,COALESCE(s.active_role,u.role) AS role,ARRAY(SELECT DISTINCT unnest(ARRAY[u.role] || u.additional_roles)) AS roles,u.employee_id,u.must_change_password,COALESCE(e.name,u.username) AS name,s.csrf_token,
+ (SELECT version FROM employee_photos WHERE employee_id=e.id) AS photo_version,
  EXISTS(SELECT 1 FROM team_members tm JOIN periods p ON tm.year=p.year WHERE tm.employee_id=u.employee_id AND tm.is_leader AND p.status='OPEN') AS is_leader
  FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN employees e ON e.id=u.employee_id
- WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active AND (e.id IS NULL OR e.active)`,
+ WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active AND (e.id IS NULL OR e.active) AND (s.active_role IS NULL OR s.active_role = ANY(ARRAY[u.role] || u.additional_roles))`,
       [digest(value)],
     );
     assert(user, 401, 'Sesi berakhir. Silakan masuk kembali.');
@@ -94,7 +96,10 @@ export function authenticate(db: DB) {
     );
     if (user.role === 'SUPERVISOR' && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       assert(
-        ['/auth/password', '/auth/logout'].includes(req.path) ||
+        ['/auth/password', '/auth/logout', '/auth/role'].includes(req.path) ||
+          (identity(res).employee_id &&
+            req.path.startsWith(`/employees/${identity(res).employee_id}/`) &&
+            /^\/employees\/[^/]+\/(profile|photo|education)(\/[^/]+)?$/.test(req.path)) ||
           (req.method === 'POST' && /^\/employees\/[^/]+\/feedback$/.test(req.path)),
         403,
         'Supervisor hanya dapat melihat data dan memberikan feedback.',

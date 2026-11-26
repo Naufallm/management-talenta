@@ -69,7 +69,7 @@ export async function importRows(buffer: Buffer, name: string) {
   const rows: string[][] = [];
   sheet.eachRow((row) => {
     const values: string[] = [];
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= Math.min(6, Math.max(row.cellCount, sheet.getRow(1).cellCount)); i++) {
       const cell = row.getCell(i);
       values.push(
         typeof cell.value === 'object' && cell.value !== null
@@ -83,10 +83,12 @@ export async function importRows(buffer: Buffer, name: string) {
 }
 export async function validateImport(db: DB, rows: string[][]) {
   assert(rows.length > 1, 422, 'Berkas tidak memiliki data.');
+  const header = rows[0].map((v) => v.trim().toLowerCase()).join(',');
+  const named = header === 'nip,nama,bulan,tahun,skor';
   assert(
-    rows[0].map((v) => v.toLowerCase()).join(',') === 'nip,bulan,tahun,skor',
+    named || header === 'nip,bulan,tahun,skor',
     422,
-    'Header harus nip,bulan,tahun,skor. Simpan NIP sebagai teks.',
+    'Header harus nip,nama,bulan,tahun,skor atau nip,bulan,tahun,skor. Simpan NIP sebagai teks.',
   );
   const employees = await db.query('SELECT id,nip,name FROM employees WHERE active'),
     lookup = new Map(employees.map((e) => [e.nip, e])),
@@ -99,12 +101,22 @@ export async function validateImport(db: DB, rows: string[][]) {
     year: z.coerce.number().int().min(2020).max(2100),
     score: z.coerce.number().min(0).max(100),
   });
-  return rows.slice(1).map((row, i) => {
-    const data = { nip: row[0], month: row[1], year: row[2], score: row[3] },
+  const entries = rows
+    .slice(1)
+    .map((row, index) => ({ row, line: index + 2 }))
+    .filter(({ row }) => !(named && row.length === 5 && row[4] === ''));
+  assert(
+    entries.length,
+    422,
+    'Belum ada skor yang diisi. Isi setidaknya satu nilai sebelum mengimpor.',
+  );
+  return entries.map(({ row, line }) => {
+    const values = named ? [row[0], row[2], row[3], row[4]] : row;
+    const data = { nip: values[0], month: values[1], year: values[2], score: values[3] },
       parsed = schema.safeParse(data),
       e = lookup.get(row[0]);
     let error = '';
-    if (row.length !== 4 || row.some((v) => v === '') || !parsed.success)
+    if (row.length !== (named ? 5 : 4) || values.some((v) => v === '') || !parsed.success)
       error = 'NIP/bulan/tahun/skor tidak valid. NIP wajib teks 18 angka; skor 0–100.';
     else if (!e) error = 'NIP tidak ditemukan atau pegawai nonaktif.';
     else {
@@ -113,7 +125,7 @@ export async function validateImport(db: DB, rows: string[][]) {
         error = 'Data pegawai, bulan, dan tahun sudah ada atau berulang.';
       seen.add(key);
     }
-    return { line: i + 2, ...data, employee_id: e?.id, name: e?.name, error };
+    return { line, ...data, employee_id: e?.id, name: e?.name, error };
   });
 }
 export function csvCell(value: unknown) {

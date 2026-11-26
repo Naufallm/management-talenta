@@ -1,17 +1,25 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { api, setCsrf, post, ApiError } from './api';
 import type { User, Period } from '../../shared/contracts';
-export function useApi<T = any>(path: string | null) {
+export function useApi<T = any>(
+  path: string | null,
+  { keepPreviousData = false }: { keepPreviousData?: boolean } = {},
+) {
   const [data, setData] = useState<T | null>(null),
     [error, setError] = useState(''),
     [loading, setLoading] = useState(!!path),
-    [revision, setRevision] = useState(0);
+    [revision, setRevision] = useState(0),
+    [settled, setSettled] = useState<{ path: string | null; revision: number }>({
+      path: null,
+      revision: -1,
+    });
   const refresh = useCallback(() => setRevision((n) => n + 1), []);
   useEffect(() => {
     let active = true;
-    setData(null);
+    if (!keepPreviousData || !path) setData(null);
     setError('');
     setLoading(!!path);
+    if (!path) setSettled({ path: null, revision });
     if (path)
       api<T>(path)
         .then((d) => {
@@ -21,13 +29,17 @@ export function useApi<T = any>(path: string | null) {
           if (active) setError(e.message);
         })
         .finally(() => {
-          if (active) setLoading(false);
+          if (active) {
+            setLoading(false);
+            setSettled({ path, revision });
+          }
         });
     return () => {
       active = false;
     };
-  }, [path, revision]);
-  return { data, error, loading, refresh };
+  }, [path, revision, keepPreviousData]);
+  const pending = !!path && (loading || settled.path !== path || settled.revision !== revision);
+  return { data: path ? data : null, error, loading: pending, refresh };
 }
 const AuthContext = createContext<{
   user: User | null;

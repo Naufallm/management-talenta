@@ -1,6 +1,7 @@
+import { UserAccessDialog } from '../components/UserAccessDialog';
 import { useState } from 'react';
 import { useApi, useAuth, usePeriod } from '../lib/context';
-import { api, put, post, patch } from '../lib/api';
+import { api, put, post } from '../lib/api';
 import {
   PageHeader,
   Panel,
@@ -24,7 +25,7 @@ export function UsersPage() {
     { user } = useAuth(),
     [editing, setEditing] = useState<any>(null),
     [password, setPassword] = useState(''),
-    { notify, run, confirm } = useFeedback();
+    { run, confirm } = useFeedback();
   return (
     <>
       <PageHeader
@@ -51,7 +52,9 @@ export function UsersPage() {
                         <strong>{r.name || r.username}</strong>
                         <small className="mono">{r.username}</small>
                       </td>
-                      <td>{roleLabel[r.role as Role]}</td>
+                      <td>
+                        {(r.roles || [r.role]).map((role: Role) => roleLabel[role]).join(', ')}
+                      </td>
                       <td>
                         <Badge tone={r.active ? 'green' : 'neutral'}>
                           {r.active ? 'Aktif' : 'Nonaktif'}
@@ -99,42 +102,11 @@ export function UsersPage() {
         </State>
       </Panel>
       {editing && (
-        <Dialog
-          title={`Akses · ${editing.name || editing.username}`}
+        <UserAccessDialog
+          editing={editing}
           onClose={() => setEditing(null)}
-        >
-          <Form
-            cancel={() => setEditing(null)}
-            onSubmit={async (d) => {
-              await patch(`/users/${editing.id}`, {
-                role: string(d, 'role'),
-                active: d.get('active') === 'on',
-              });
-              setEditing(null);
-              state.refresh();
-              notify('Hak akses diperbarui.');
-            }}
-          >
-            <Field label="Peran">
-              <select name="role" defaultValue={editing.role}>
-                {Object.entries(roleLabel).map(([key, label]) => (
-                  <option
-                    key={key}
-                    value={key}
-                    disabled={key === 'PEGAWAI' && !editing.employee_id}
-                  >
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <label className="checkbox-field">
-              <input type="checkbox" name="active" defaultChecked={editing.active} />
-              Akun aktif
-            </label>
-            <p className="muted">Perubahan akan menghentikan sesi aktif pengguna.</p>
-          </Form>
-        </Dialog>
+          onSaved={state.refresh}
+        />
       )}
       {password && (
         <Dialog title="Kata sandi sementara" onClose={() => setPassword('')}>

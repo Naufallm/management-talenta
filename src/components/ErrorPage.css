@@ -1,0 +1,65 @@
+.error-page {
+  --blue: #2c3cdd;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: 48px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: white;
+  color: #141827;
+}
+.error-page > img {
+  width: min(680px, 76vw);
+  height: auto;
+  display: block;
+  margin-bottom: 18px;
+}
+.error-page h1 {
+  color: var(--blue);
+  font-size: clamp(34px, 4.1vw, 58px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+}
+.error-page p {
+  margin-top: 14px;
+  font-size: clamp(15px, 1.8vw, 23px);
+  color: #1a2032;
+  font-weight: 500;
+}
+.error-page-actions {
+  margin-top: 54px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+  justify-content: center;
+}
+.error-page-actions > a {
+  color: var(--blue);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  font-weight: 550;
+}
+.error-page-actions > .btn {
+  background: var(--blue);
+}
+.error-page.fatal-error {
+  margin: 0;
+  max-width: none;
+}
+@media (max-width: 600px) {
+  .error-page {
+    padding: 30px 20px;
+  }
+  .error-page > img {
+    width: min(360px, 94vw);
+    margin-bottom: 12px;
+  }
+  .error-page-actions {
+    margin-top: 34px;
+  }
+}

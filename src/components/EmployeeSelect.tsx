@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApi } from '../lib/context';
 import type { Employee } from '../../shared/contracts';
+import { Search } from 'lucide-react';
 export function EmployeeSelect({
   name = 'employee_id',
   value,
@@ -28,12 +29,15 @@ export function EmployeeSelect({
   const options = selected && !rows.some((r) => r.id === selected.id) ? [selected, ...rows] : rows;
   return (
     <div className="employee-select">
-      <input
-        aria-label="Cari pilihan pegawai"
-        placeholder="Cari nama atau NIP…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
+      <div className="search-input">
+        <Search size={16} aria-hidden="true" />
+        <input
+          aria-label="Cari pilihan pegawai"
+          placeholder="Cari nama atau NIP…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
       <select
         aria-label="Pilihan pegawai"
         name={name}

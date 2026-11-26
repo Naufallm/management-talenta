@@ -13,6 +13,7 @@ import { assert } from '../errors.ts';
 import { audit, identity, requireManager, getPeriod, ownEmployee, requireSuper } from '../http.ts';
 import { potentialScore, calculateEmployee, round } from '../domain/scoring.ts';
 import { encrypt, decrypt } from '../security.ts';
+import { readDna } from '../domain/potential-dna.ts';
 export function assessmentRouter(db: DB) {
   const r = Router();
   r.get('/assessments/:kind/:periodId/:employeeId', async (req, res) => {
@@ -214,11 +215,60 @@ export function assessmentRouter(db: DB) {
   r.get('/assessment-overview/:periodId', requireManager, async (req, res) =>
     res.json(
       await db.query(
-        `SELECT e.id,e.name,e.nip,e.unit,a.submitted_at,s.score AS potential,c.score AS competency FROM employees e LEFT JOIN potential_answers a ON a.employee_id=e.id AND a.period_id=$1 LEFT JOIN potential_scores s ON s.employee_id=e.id AND s.period_id=$1 LEFT JOIN competency_scores c ON c.employee_id=e.id AND c.period_id=$1 WHERE e.active ORDER BY e.name`,
+        `SELECT e.id,e.name,e.nip,e.unit,a.submitted_at,a.updated_at AS potential_updated_at,s.score AS potential,c.score AS competency,d.submitted_at AS dna_submitted_at,d.updated_at AS dna_updated_at FROM employees e LEFT JOIN potential_answers a ON a.employee_id=e.id AND a.period_id=$1 LEFT JOIN potential_scores s ON s.employee_id=e.id AND s.period_id=$1 LEFT JOIN competency_scores c ON c.employee_id=e.id AND c.period_id=$1 LEFT JOIN potential_dna_assessments d ON d.employee_id=e.id AND d.period_id=$1 WHERE e.active ORDER BY e.name`,
         [req.params.periodId],
       ),
     ),
   );
+  r.get('/assessment-review/:periodId/:employeeId', requireSuper, async (req, res) => {
+    const periodId = String(req.params.periodId),
+      employeeId = String(req.params.employeeId);
+    await getPeriod(db, periodId);
+    const [employee] = await db.query(
+      'SELECT e.id,e.name,e.nip,e.unit,e.position,(SELECT version FROM employee_photos WHERE employee_id=e.id) AS photo_version FROM employees e WHERE e.id=$1',
+      [employeeId],
+    );
+    assert(employee, 404, 'Pegawai tidak ditemukan.');
+    const [config] = await db.query('SELECT * FROM score_config WHERE period_id=$1', [periodId]);
+    const questions = await db.query(
+      'SELECT * FROM potential_questions WHERE period_id=$1 ORDER BY sort_order,id',
+      [periodId],
+    );
+    const [answer] = await db.query(
+      'SELECT answers,submitted_at,updated_at FROM potential_answers WHERE employee_id=$1 AND period_id=$2',
+      [employeeId, periodId],
+    );
+    const [potential] = await db.query(
+      'SELECT managerial,technical,score FROM potential_scores WHERE employee_id=$1 AND period_id=$2',
+      [employeeId, periodId],
+    );
+    const [competency] = await db.query(
+      'SELECT evidence,leader,score FROM competency_scores WHERE employee_id=$1 AND period_id=$2',
+      [employeeId, periodId],
+    );
+    const evidence = await db.query(
+      `SELECT id,name,activity_type,activity_date,organizer,hours,verified,document_id,job_match,'training' AS kind FROM trainings WHERE employee_id=$1 AND period_id=$2
+       UNION ALL SELECT id,name,activity_type,activity_date,organizer,hours,verified,document_id,NULL::boolean,'achievement' AS kind FROM achievements WHERE employee_id=$1 AND period_id=$2 ORDER BY activity_date DESC,id`,
+      [employeeId, periodId],
+    );
+    const leaders = await db.query(
+      `SELECT a.id,e.name AS leader_name,a.indicators,a.note,a.score,a.submitted_at FROM leader_assessments a JOIN employees e ON e.id=a.leader_id WHERE a.employee_id=$1 AND a.period_id=$2 ORDER BY e.name,a.id`,
+      [employeeId, periodId],
+    );
+    res.json({
+      employee,
+      dna: await readDna(db, periodId, employeeId),
+      config,
+      questions,
+      answers: answer?.answers || {},
+      submitted_at: answer?.submitted_at || null,
+      updated_at: answer?.updated_at || null,
+      potential: potential || null,
+      competency: competency || null,
+      evidence,
+      leaders,
+    });
+  });
   r.get('/leader/:periodId', async (req, res) => {
     const u = identity(res);
     assert(

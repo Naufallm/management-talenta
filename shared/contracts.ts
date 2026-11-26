@@ -1,15 +1,18 @@
 import { z } from 'zod';
 import { roles } from './constants.ts';
+import type { DnaAssessment } from './potential-dna.ts';
 export { roles, indicators, months } from './constants.ts';
 export type Role = (typeof roles)[number];
 export interface User {
   id: string;
   username: string;
   role: Role;
+  roles: Role[];
   employee_id: string | null;
   name: string;
   must_change_password: boolean;
   is_leader: boolean;
+  photo_version?: string | null;
   csrfToken: string;
 }
 export interface QuickLoginAccount {
@@ -26,7 +29,7 @@ export const employeeSchema = z.object({
   nip: z.string().regex(/^\d{18}$/, 'NIP harus terdiri dari 18 angka.'),
   name: z.string().trim().min(2, 'Nama minimal 2 karakter.').max(120),
   position: z.string().trim().min(2).max(150),
-  grade: z.string().trim().min(1).max(20),
+  grade: z.string().trim().max(20),
   unit: z.string().trim().min(2).max(100),
   email: z.union([z.email(), z.literal('')]).default(''),
   phone: z
@@ -40,15 +43,19 @@ export type EmployeeInput = z.infer<typeof employeeSchema>;
 export interface Employee extends EmployeeInput {
   id: string;
   teams?: string;
+  is_leader?: boolean;
+  photo_version?: string | null;
   created_at?: string;
+  has_account?: boolean;
 }
 export interface Period {
   id: string;
   name: string;
   year: number;
-  status: 'DRAFT' | 'OPEN' | 'CLOSED';
+  status: 'OPEN' | 'CLOSED';
   starts_on: string;
   ends_on: string;
+  demo_data?: boolean;
 }
 export const periodSchema = z
   .object({
@@ -56,7 +63,7 @@ export const periodSchema = z
     name: z.string().trim().min(3).max(120),
     starts_on: z.iso.date(),
     ends_on: z.iso.date(),
-    status: z.enum(['DRAFT', 'OPEN', 'CLOSED']),
+    status: z.enum(['OPEN', 'CLOSED']),
   })
   .refine((d) => d.ends_on >= d.starts_on, {
     message: 'Tanggal akhir harus setelah tanggal mulai.',
@@ -90,6 +97,49 @@ export interface Question extends z.infer<typeof questionSchema> {
   id: string;
   period_id: string;
 }
+export interface AssessmentSummary {
+  dna_submitted_at: string | null;
+  dna_updated_at: string | null;
+  id: string;
+  name: string;
+  nip: string;
+  unit: string;
+  potential: number | null;
+  competency: number | null;
+  submitted_at: string | null;
+  potential_updated_at: string | null;
+}
+export interface AssessmentReview {
+  dna: DnaAssessment;
+  employee: Pick<Employee, 'id' | 'name' | 'nip' | 'unit' | 'position' | 'photo_version'>;
+  config: ScoreConfig;
+  questions: Question[];
+  answers: Record<string, number>;
+  submitted_at: string | null;
+  updated_at: string | null;
+  potential: { managerial: number; technical: number; score: number } | null;
+  competency: { evidence: number; leader: number | null; score: number | null } | null;
+  evidence: {
+    id: string;
+    name: string;
+    kind: 'training' | 'achievement';
+    activity_type: string;
+    activity_date: string;
+    organizer: string;
+    hours: number;
+    verified: boolean;
+    job_match: boolean | null;
+    document_id: string | null;
+  }[];
+  leaders: {
+    id: string;
+    leader_name: string;
+    indicators: Record<string, number>;
+    note: string;
+    score: number | null;
+    submitted_at: string | null;
+  }[];
+}
 export const answerSchema = z.object({
   answers: z.record(z.string(), z.number().int().min(1).max(5)),
   submit: z.boolean().default(false),
@@ -106,17 +156,32 @@ export const ckpSchema = z.object({
   year: z.number().int().min(2020).max(2100),
   score: z.number().min(0).max(100),
 });
-export const evidenceSchema = z.object({
-  employee_id: z.string().min(1),
-  kind: z.enum(['training', 'achievement']),
-  name: z.string().trim().min(3).max(200),
-  activity_type: z.string().trim().min(2).max(100),
-  activity_date: z.iso.date(),
-  organizer: z.string().trim().min(2).max(150),
-  hours: z.number().min(0).max(10000),
-  document_id: z.string().nullable().default(null),
-  verified: z.boolean().default(false),
-});
+export const educationSchema = z
+  .object({
+    level: z.string().trim().min(2).max(80),
+    study_program: z.string().trim().min(2).max(200),
+    diploma_date: z.iso.date(),
+  })
+  .strict();
+export const evidenceSchema = z
+  .object({
+    job_match: z.boolean().nullable().default(null),
+    award_level: z.enum(['CITY', 'PROVINCE', 'NATIONAL']).nullable().default(null),
+    award_scope: z.enum(['INTERNAL', 'EXTERNAL']).nullable().default(null),
+    place: z.string().trim().max(200).default(''),
+    employee_id: z.string().min(1),
+    kind: z.enum(['training', 'achievement']),
+    name: z.string().trim().min(3).max(200),
+    activity_type: z.string().trim().min(2).max(100),
+    activity_date: z.iso.date(),
+    organizer: z.string().trim().min(2).max(150),
+    hours: z.number().min(0).max(10000),
+    document_id: z.string().nullable().default(null),
+    verified: z.boolean().default(false),
+  })
+  .refine((d) => (d.award_level === null) === (d.award_scope === null), {
+    message: 'Tingkat dan cakupan penghargaan harus diisi bersama.',
+  });
 export type Quadrant =
   'Talenta Unggul' | 'Profesional Andal' | 'Perlu Pengembangan' | 'Talenta Berkembang';
 export interface TalentPoint {

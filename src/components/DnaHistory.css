@@ -1,0 +1,87 @@
+.dna-history-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.dna-history-toolbar .field {
+  flex: 1;
+  min-width: min(100%, 240px);
+  max-width: 520px;
+  margin: 0;
+}
+.dna-history-toolbar > p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  padding-bottom: 11px;
+}
+.dna-history-content {
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+  padding-top: 20px;
+  min-width: 0;
+}
+.dna-history-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dna-history-heading h3 {
+  font-size: 17px;
+}
+.dna-history-heading p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+.dna-history-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11px;
+  margin: 12px 0 20px;
+}
+.dna-history-note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.app-layout .dna-history .dna-review > .panel,
+.app-layout .dna-history .dna-results > .panel {
+  background: #fafbfe;
+  box-shadow: none;
+}
+.dna-history .empty {
+  min-height: 100px;
+  padding: 10px;
+}
+.dna-history-answers > summary {
+  cursor: pointer;
+  padding: 12px 0;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 550;
+  border-radius: 5px;
+}
+.dna-history-answers > summary:hover {
+  color: #2331bc;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.dna-history-answers > summary:focus-visible {
+  outline: 2px solid #8899ef;
+  outline-offset: 2px;
+}
+@media (max-width: 600px) {
+  .dna-history-toolbar {
+    gap: 8px;
+  }
+  .dna-history-toolbar > p {
+    padding-bottom: 0;
+    font-size: 11px;
+  }
+}

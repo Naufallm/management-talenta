@@ -1,10 +1,12 @@
 import { Component, lazy, type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, PeriodProvider, useAuth, usePeriod } from './lib/context';
-import { FeedbackProvider, State, Empty } from './components/ui';
+import { FeedbackProvider, State } from './components/ui';
+import { ErrorPage } from './components/ErrorPage';
 import { Layout } from './components/Layout';
 import { Login, Password } from './pages/Auth';
-const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })));
+import { Home } from './pages/Home';
+const Dashboard = lazy(() => import('./pages/NineBox').then((m) => ({ default: m.NineBoxPage })));
 const EmployeeList = lazy(() =>
   import('./pages/Employees').then((m) => ({ default: m.EmployeeList })),
 );
@@ -14,14 +16,16 @@ const EmployeeForm = lazy(() =>
 const EmployeeDetail = lazy(() =>
   import('./pages/Employees').then((m) => ({ default: m.EmployeeDetail })),
 );
-const Talent = lazy(() => import('./pages/Analytics').then((m) => ({ default: m.Talent })));
 const Ckp = lazy(() => import('./pages/Analytics').then((m) => ({ default: m.Ckp })));
-const Reports = lazy(() => import('./pages/Analytics').then((m) => ({ default: m.Reports })));
+const Reports = lazy(() => import('./pages/NineBox').then((m) => ({ default: m.NineBoxReports })));
 const Assessment = lazy(() =>
   import('./pages/Assessments').then((m) => ({ default: m.Assessment })),
 );
+const PotentialDna = lazy(() =>
+  import('./pages/PotentialDna').then((m) => ({ default: m.PotentialDna })),
+);
 const AssessmentOverview = lazy(() =>
-  import('./pages/Assessments').then((m) => ({ default: m.AssessmentOverview })),
+  import('./pages/AssessmentOverview').then((m) => ({ default: m.AssessmentOverview })),
 );
 const LeaderAssessments = lazy(() =>
   import('./pages/Assessments').then((m) => ({ default: m.LeaderAssessments })),
@@ -35,6 +39,19 @@ const Audit = lazy(() => import('./pages/Administration').then((m) => ({ default
 const PsychologyResults = lazy(() =>
   import('./pages/Administration').then((m) => ({ default: m.PsychologyResults })),
 );
+const AxisPage = lazy(() => import('./pages/NineBox').then((m) => ({ default: m.AxisPage })));
+const NineBoxRecords = lazy(() =>
+  import('./pages/NineBoxRecords').then((m) => ({ default: m.NineBoxRecords })),
+);
+const PotentialSectionPage = lazy(() =>
+  import('./pages/NineBoxRecords').then((m) => ({ default: m.PotentialSectionPage })),
+);
+function SectionRedirect({ section, part }: { section: string; part: string }) {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  params.set('bagian', part);
+  return <Navigate to={'/' + section + '?' + params.toString()} replace />;
+}
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: boolean }> {
   state = { error: false };
   static getDerivedStateFromError() {
@@ -45,13 +62,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: boolean 
   }
   render() {
     return this.state.error ? (
-      <div className="fatal-error">
-        <h1>Halaman tidak dapat dimuat.</h1>
-        <p>Muat ulang untuk mencoba kembali.</p>
-        <button className="btn btn-primary" onClick={() => window.location.reload()}>
-          Muat ulang
-        </button>
-      </div>
+      <ErrorPage unexpected homeHref="/" onRetry={() => window.location.reload()} />
     ) : (
       this.props.children
     );
@@ -71,7 +82,11 @@ function Guard({
       : role === 'manager'
         ? user?.role !== 'PEGAWAI'
         : user?.role === 'PEGAWAI';
-  return allowed ? <>{children}</> : <Navigate to="/" replace />;
+  return allowed ? <>{children}</> : <Navigate to="/dashboard" replace />;
+}
+function OwnProfile() {
+  const { user } = useAuth();
+  return user?.employee_id ? <EmployeeDetail self /> : <Navigate to="/akun" replace />;
 }
 function Content() {
   const { period, error, loading } = usePeriod();
@@ -84,7 +99,7 @@ function Content() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<Dashboard />} />
+        <Route path="dashboard" element={<Dashboard dashboard />} />
         <Route
           path="pegawai"
           element={
@@ -133,8 +148,36 @@ function Content() {
             </Guard>
           }
         />
-        <Route path="peta-talenta" element={<Talent />} />
+        <Route path="peta-talenta" element={<Navigate to="/dashboard" replace />} />
         <Route path="ckp" element={<Ckp />} />
+        <Route path="kinerja" element={<AxisPage axis="y" />} />
+        <Route path="potensial" element={<AxisPage axis="x" />} />
+        <Route
+          path="pelatihan"
+          element={<SectionRedirect section="kompetensi" part="pelatihan" />}
+        />
+        <Route path="penghargaan" element={<NineBoxRecords kind="awards" />} />
+        <Route
+          path="pendidikan"
+          element={<SectionRedirect section="kualifikasi" part="pendidikan" />}
+        />
+        <Route
+          path="pengalaman-jabatan"
+          element={<SectionRedirect section="kompetensi" part="pengalaman" />}
+        />
+        <Route
+          path="profil-dna"
+          element={
+            <Guard role="manager">
+              <NineBoxRecords kind="dna" />
+            </Guard>
+          }
+        />
+        <Route path="penilaian-ketua" element={<NineBoxRecords kind="leader" />} />
+        <Route
+          path="kesesuaian-ilmu"
+          element={<SectionRedirect section="kualifikasi" part="kesesuaian" />}
+        />
         <Route
           path="pengaturan"
           element={
@@ -179,7 +222,7 @@ function Content() {
           path="asesmen-potensi"
           element={
             <Guard role="employee">
-              <Assessment key={`potential/${period?.id}`} />
+              <PotentialDna />
             </Guard>
           }
         />
@@ -191,22 +234,9 @@ function Content() {
             </Guard>
           }
         />
-        <Route
-          path="kompetensi"
-          element={
-            <Guard role="employee">
-              <EmployeeDetail self initialTab="kompetensi" />
-            </Guard>
-          }
-        />
-        <Route
-          path="profil"
-          element={
-            <Guard role="employee">
-              <EmployeeDetail self />
-            </Guard>
-          }
-        />
+        <Route path="kompetensi" element={<PotentialSectionPage section="competency" />} />
+        <Route path="kualifikasi" element={<PotentialSectionPage section="qualification" />} />
+        <Route path="profil" element={<OwnProfile />} />
         <Route
           path="penilaian-anggota"
           element={
@@ -216,27 +246,23 @@ function Content() {
           }
         />
         <Route path="akun" element={<Password />} />
-        <Route
-          path="*"
-          element={
-            <Empty
-              title="Halaman tidak ditemukan"
-              action={
-                <Link to="/" className="btn btn-primary">
-                  Kembali ke beranda
-                </Link>
-              }
-            />
-          }
-        />
       </Route>
+      <Route path="*" element={<ErrorPage />} />
     </Routes>
   );
 }
 function Session() {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return <State loading />;
-  if (!user) return <Login />;
+  if (!user)
+    return (
+      <Navigate
+        to="/login"
+        state={{ from: location.pathname + location.search + location.hash }}
+        replace
+      />
+    );
   if (user.must_change_password) return <Password forced />;
   return (
     <PeriodProvider>
@@ -244,13 +270,37 @@ function Session() {
     </PeriodProvider>
   );
 }
+function LoginRoute() {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  if (loading) return <State loading />;
+  if (!user) return <Login />;
+  const from: unknown = location.state?.from;
+  const destination =
+    typeof from === 'string' &&
+    from.startsWith('/') &&
+    !from.startsWith('//') &&
+    from.split(/[?#]/)[0] !== '/login'
+      ? from
+      : '/dashboard';
+  return <Navigate to={destination} replace />;
+}
+function NotFoundRoute() {
+  const { user } = useAuth();
+  return <ErrorPage homeHref={user ? '/dashboard' : '/'} />;
+}
 export default function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
         <FeedbackProvider>
           <AuthProvider>
-            <Session />
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/login" element={<LoginRoute />} />
+              <Route path="/404" element={<NotFoundRoute />} />
+              <Route path="*" element={<Session />} />
+            </Routes>
           </AuthProvider>
         </FeedbackProvider>
       </BrowserRouter>

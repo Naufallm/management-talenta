@@ -64,6 +64,31 @@ export function authRouter(db: DB) {
     delete user.csrf_token;
     res.json({ ...user, csrfToken: res.locals.csrf });
   });
+  r.post('/auth/role', async (req, res) => {
+    const { role } = z
+      .object({ role: z.enum(['ADMIN', 'SUPERVISOR', 'PEGAWAI']) })
+      .strict()
+      .parse(req.body);
+    const user = identity(res);
+    await db.transaction(async (tx) => {
+      const [stored] = await tx.query(
+        'SELECT role,additional_roles,employee_id FROM users WHERE id=$1 FOR UPDATE',
+        [user.id],
+      );
+      assert(
+        stored && [stored.role, ...stored.additional_roles].includes(role),
+        403,
+        'Peran ini belum diberikan oleh Admin.',
+      );
+      assert(role !== 'PEGAWAI' || stored.employee_id, 403, 'Profil pegawai belum tersedia.');
+      await tx.query('DELETE FROM sessions WHERE token_hash=$1', [
+        digest(req.cookies.talenta_session),
+      ]);
+      await session(tx, user.id, res, role);
+      await audit(tx, user.id, 'ROLE_SWITCH', 'auth', { role });
+    });
+    res.json({ message: 'Peran aktif diperbarui.' });
+  });
   r.post('/auth/logout', async (req, res) => {
     await db.query('DELETE FROM sessions WHERE token_hash=$1', [
       digest(req.cookies.talenta_session),
@@ -95,19 +120,28 @@ export function authRouter(db: DB) {
       await tx.query('DELETE FROM sessions WHERE user_id=$1', [user.id]);
       await audit(tx, user.id, 'PASSWORD_CHANGE', `users/${user.id}`);
     });
-    const csrfToken = await session(db, user.id, res);
+    const csrfToken = await session(db, user.id, res, user.role);
     res.json({ message: 'Kata sandi diperbarui.', csrfToken });
   });
   r.get('/users', requireSuper, async (_req, res) =>
     res.json(
       await db.query(
-        'SELECT u.id,u.username,u.role,u.employee_id,u.active,u.must_change_password,e.name FROM users u LEFT JOIN employees e ON e.id=u.employee_id ORDER BY u.username',
+        'SELECT u.id,u.username,u.role,ARRAY(SELECT DISTINCT unnest(ARRAY[u.role] || u.additional_roles)) AS roles,u.employee_id,u.active,u.must_change_password,e.name FROM users u LEFT JOIN employees e ON e.id=u.employee_id ORDER BY u.username',
       ),
     ),
   );
   r.patch('/users/:id', requireSuper, async (req, res) => {
-    const { role, active } = z
-      .object({ role: z.enum(['ADMIN', 'SUPERVISOR', 'PEGAWAI']), active: z.boolean() })
+    const { role, active, roles } = z
+      .object({
+        role: z.enum(['ADMIN', 'SUPERVISOR', 'PEGAWAI']),
+        active: z.boolean(),
+        roles: z
+          .array(z.enum(['ADMIN', 'SUPERVISOR', 'PEGAWAI']))
+          .min(1)
+          .max(3)
+          .optional(),
+      })
+      .strict()
       .parse(req.body);
     assert(
       req.params.id !== identity(res).id,
@@ -116,8 +150,17 @@ export function authRouter(db: DB) {
     );
     const [user] = await db.query('SELECT * FROM users WHERE id=$1', [req.params.id]);
     assert(user, 404, 'Pengguna tidak ditemukan.');
-    assert(role !== 'PEGAWAI' || user.employee_id, 422, 'Peran Pegawai memerlukan profil pegawai.');
+    assert(
+      !(roles ?? [role]).includes('PEGAWAI') || user.employee_id,
+      422,
+      'Peran Pegawai memerlukan profil pegawai.',
+    );
+    assert(!roles || roles.includes(role), 422, 'Peran awal harus termasuk akses yang diberikan.');
     await db.transaction(async (tx) => {
+      await tx.query('UPDATE users SET additional_roles=$1 WHERE id=$2', [
+        (roles ?? [role]).filter((r) => r !== role),
+        req.params.id,
+      ]);
       await tx.query('UPDATE users SET role=$1,active=$2 WHERE id=$3', [
         role,
         active,

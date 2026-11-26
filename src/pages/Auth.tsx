@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { ArrowRight, ShieldCheck, Eye, EyeOff, UserRoundCheck } from 'lucide-react';
+import { ArrowLeft, LogIn, ShieldCheck, Eye, EyeOff, UserRoundCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useAuth, useApi } from '../lib/context';
 import { post, setCsrf } from '../lib/api';
-import { Brand } from '../components/Layout';
+import { Brand } from '../components/Brand';
 import { Form, Field, PageHeader, Panel, string, useFeedback, Button } from '../components/ui';
 import type { LoginOptions, QuickLoginAccount } from '../../shared/contracts';
+import './Auth.css';
 export function Login() {
   const { refresh, error } = useAuth(),
     [visible, setVisible] = useState(false),
@@ -30,141 +32,155 @@ export function Login() {
     void run(() => signIn(account.username, options.data!.password!));
   const employees = options.data?.accounts.filter((account) => account.role === 'PEGAWAI') || [];
   return (
-    <div className="login">
-      <section className="login-story">
-        <Brand />
-        <div className="login-copy">
-          <div className="login-rule" />
-          <span className="eyebrow">BPS KOTA BATU</span>
-          <h1>
-            Ruang untuk
-            <br />
-            talenta bertumbuh.
-          </h1>
-          <p>Kenali potensi, kembangkan kompetensi, dan bangun masa depan bersama.</p>
-          <div className="login-pill">
-            <ShieldCheck size={17} />
-            Akses terkelola. Data terlindungi.
+    <div className="login-page">
+      <div className="login">
+        <main className="login-form">
+          <div className="login-brand">
+            <Brand publicSite />
           </div>
-        </div>
-        <small>Sistem Manajemen Talenta Pegawai</small>
-      </section>
-      <main className="login-form">
-        <div>
-          <span className="eyebrow">SELAMAT DATANG</span>
-          <h2>Masuk ke Talenta</h2>
-          <p>Gunakan akun yang diberikan oleh pengelola.</p>
-          {error && <p className="form-error">{error}</p>}
-          <Form
-            submit="Masuk ke akun"
-            disabled={submitting}
-            onSubmit={(d) => signIn(string(d, 'username'), string(d, 'password'))}
-          >
-            <Field label="NIP atau email">
-              <input
-                name="username"
-                autoComplete="username"
-                placeholder="Masukkan NIP / email"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                autoFocus
-                maxLength={100}
-              />
-            </Field>
-            <Field label="Kata sandi">
-              <div className="password-input">
-                <input
-                  name="password"
-                  aria-label="Kata sandi"
-                  type={visible ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  placeholder="Masukkan kata sandi"
-                  required
-                  maxLength={128}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  aria-label={visible ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
-                  onClick={() => setVisible(!visible)}
-                >
-                  {visible ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </Field>
-          </Form>
-          <p className="login-help">Lupa kata sandi? Hubungi Admin untuk pemulihan akun.</p>
-          {options.data?.testingLogin && (
-            <section className="quick-login" aria-labelledby="quick-login-title">
-              <div className="quick-login-heading">
-                <h3 id="quick-login-title">Login cepat</h3>
-                <span>Testing</span>
-              </div>
-              <p>
-                Pilih akun untuk langsung masuk. Kata sandi: <code>{options.data.password}</code>
+          <div className="login-form-body">
+            <div className="login-intro">
+              <h1>Masuk ke Talenta BPS</h1>
+              <p>Gunakan akun BPS Kota Batu Anda.</p>
+            </div>
+            {error && (
+              <p className="form-error" role="alert">
+                {error}
               </p>
-              <div className="quick-login-roles">
-                {options.data.accounts
-                  .filter((account) => account.role !== 'PEGAWAI')
-                  .map((account) => (
+            )}
+            <Form
+              submit="Masuk ke akun"
+              disabled={submitting}
+              onSubmit={(d) => signIn(string(d, 'username'), string(d, 'password'))}
+            >
+              <div className="login-credentials">
+                <Field label="NIP atau email">
+                  <input
+                    name="username"
+                    autoComplete="username"
+                    placeholder="Masukkan NIP / email"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                    autoFocus
+                    maxLength={100}
+                  />
+                </Field>
+                <Field label="Kata sandi">
+                  <div className="password-input">
+                    <input
+                      name="password"
+                      id="login-password"
+                      aria-label="Kata sandi"
+                      type={visible ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      placeholder="Masukkan kata sandi"
+                      required
+                      maxLength={128}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      aria-label={visible ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                      aria-pressed={visible}
+                      aria-controls="login-password"
+                      onClick={() => setVisible(!visible)}
+                    >
+                      {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </Field>
+              </div>
+            </Form>
+            <p className="login-help">
+              Lupa kata sandi? <span>Hubungi Admin untuk pemulihan akun.</span>
+            </p>
+            {options.data?.testingLogin && (
+              <section className="quick-login" aria-labelledby="quick-login-title">
+                <div className="quick-login-heading">
+                  <h3 id="quick-login-title">Login cepat</h3>
+                  <span>Testing</span>
+                </div>
+                <p>
+                  Pilih akun untuk langsung masuk. Kata sandi: <code>{options.data.password}</code>
+                </p>
+                <div className="quick-login-roles">
+                  {options.data.accounts
+                    .filter((account) => account.role !== 'PEGAWAI')
+                    .map((account) => (
+                      <Button
+                        key={account.username}
+                        type="button"
+                        variant="secondary"
+                        disabled={submitting}
+                        onClick={() => quickLogin(account)}
+                        aria-label={`Masuk sebagai ${account.role === 'ADMIN' ? 'Admin' : 'Supervisor'}`}
+                      >
+                        {account.role === 'ADMIN' ? (
+                          <ShieldCheck size={18} />
+                        ) : (
+                          <UserRoundCheck size={18} />
+                        )}
+                        <span>
+                          <strong>{account.role === 'ADMIN' ? 'Admin' : 'Supervisor'}</strong>
+                          <small>{account.username}</small>
+                        </span>
+                        <LogIn size={15} aria-hidden="true" />
+                      </Button>
+                    ))}
+                </div>
+                {employees.length > 0 && (
+                  <div className="quick-login-employee">
+                    <Field label="Login cepat pegawai">
+                      <select
+                        disabled={submitting}
+                        value={selectedEmployee || employees[0].username}
+                        onChange={(e) => setSelectedEmployee(e.target.value)}
+                      >
+                        {employees.map((account) => (
+                          <option key={account.username} value={account.username}>
+                            {account.name} · {account.username}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
                     <Button
-                      key={account.username}
                       type="button"
                       variant="secondary"
                       disabled={submitting}
-                      onClick={() => quickLogin(account)}
-                      aria-label={`Masuk sebagai ${account.role === 'ADMIN' ? 'Admin' : 'Supervisor'}`}
+                      aria-label="Masuk sebagai Pegawai"
+                      onClick={() =>
+                        quickLogin(
+                          employees.find((a) => a.username === selectedEmployee) || employees[0],
+                        )
+                      }
                     >
-                      {account.role === 'ADMIN' ? (
-                        <ShieldCheck size={18} />
-                      ) : (
-                        <UserRoundCheck size={18} />
-                      )}
-                      <span>
-                        <strong>{account.role === 'ADMIN' ? 'Admin' : 'Supervisor'}</strong>
-                        <small>{account.username}</small>
-                      </span>
-                      <ArrowRight size={15} />
+                      Masuk
+                      <LogIn size={15} aria-hidden="true" />
                     </Button>
-                  ))}
-              </div>
-              {employees.length > 0 && (
-                <div className="quick-login-employee">
-                  <Field label="Login cepat pegawai">
-                    <select
-                      disabled={submitting}
-                      value={selectedEmployee || employees[0].username}
-                      onChange={(e) => setSelectedEmployee(e.target.value)}
-                    >
-                      {employees.map((account) => (
-                        <option key={account.username} value={account.username}>
-                          {account.name} · {account.username}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={submitting}
-                    onClick={() =>
-                      quickLogin(
-                        employees.find((a) => a.username === selectedEmployee) || employees[0],
-                      )
-                    }
-                  >
-                    Masuk sebagai Pegawai
-                    <ArrowRight size={15} />
-                  </Button>
-                </div>
-              )}
-            </section>
-          )}
-        </div>
-        <small>© {new Date().getFullYear()} BPS Kota Batu</small>
-      </main>
+                  </div>
+                )}
+              </section>
+            )}
+          </div>
+          <footer className="login-footer">
+            <Link className="login-back" to="/">
+              <ArrowLeft size={15} aria-hidden="true" /> Kembali ke beranda
+            </Link>
+            <small>© {new Date().getFullYear()} BPS Kota Batu</small>
+          </footer>
+        </main>
+        <section className="login-visual" aria-hidden="true">
+          <div className="login-illustration">
+            <div className="login-mark">
+              {Array.from({ length: 9 }, (_, index) => (
+                <span key={index} />
+              ))}
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
@@ -177,7 +193,7 @@ export function Password({ forced = false }: { forced?: boolean }) {
         title={forced ? 'Buat kata sandi baru' : 'Pengaturan Akun'}
         description={
           forced
-            ? 'Untuk mulai menggunakan Talenta, ganti kata sandi awal Anda.'
+            ? 'Untuk mulai menggunakan Talenta BPS, ganti kata sandi awal Anda.'
             : 'Perbarui kata sandi untuk menjaga keamanan akun.'
         }
       />
